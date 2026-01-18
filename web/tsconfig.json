@@ -9,5 +9,10 @@
     "types": ["vite/client"],
     "skipLibCheck": true
   },
-  "include": ["./src"]
+  "include": [
+    "./src",
+    "../widgets/**/*.ts",
+    "../widgets/**/*.tsx",
+    "../widgets/**/*.js"
+  ]
 }
