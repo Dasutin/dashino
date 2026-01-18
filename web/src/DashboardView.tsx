@@ -19,7 +19,7 @@ type ControllerModule = {
 } & Record<string, unknown>;
 
 const controllerModules = import.meta.glob<ControllerModule>(
-  "../../widgets/*/widget.{ts,tsx,js}",
+  "./controllers/*.{ts,tsx,js}",
   { eager: true }
 );
 
@@ -45,7 +45,7 @@ function resolveFactory(mod: ControllerModule, type: string): WidgetFactory | un
 // Convention-based discovery: widgets/<type>/widget.* exports a controller factory.
 const widgetFactories: Record<string, WidgetFactory> = Object.entries(controllerModules).reduce(
   (acc, [path, mod]) => {
-    const match = path.match(/\/widgets\/([^/]+)\/widget\./);
+    const match = path.match(/\/controllers\/([^/.]+)\./);
     if (!match) return acc;
 
     const type = match[1];
