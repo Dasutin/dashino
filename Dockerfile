@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1
 
 FROM node:20-slim AS base
-ENV NODE_ENV=production
 WORKDIR /app
 
 FROM base AS deps
@@ -13,6 +12,7 @@ COPY . .
 RUN npm run build
 
 FROM base AS runner
+ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
