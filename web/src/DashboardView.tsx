@@ -8,53 +8,13 @@ import type {
   WidgetTemplate
 } from "./types";
 import "./dashboard.css";
+import controllersMap from "./controllers/generated";
 
 const DEFAULT_GUTTER = 16;
 const DEFAULT_COLUMN_WIDTH = 160;
 const DEFAULT_ROW_HEIGHT = 180;
 
-type ControllerModule = {
-  createController?: WidgetFactory;
-  default?: WidgetFactory;
-} & Record<string, unknown>;
-
-const controllerModules = import.meta.glob<ControllerModule>(
-  "./controllers/*.{ts,tsx,js}",
-  { eager: true }
-);
-
-function toPascalCase(type: string) {
-  return type
-    .split(/[-_]/g)
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("");
-}
-
-function resolveFactory(mod: ControllerModule, type: string): WidgetFactory | undefined {
-  if (typeof mod.createController === "function") return mod.createController;
-  if (typeof mod.default === "function") return mod.default;
-
-  const namedExport = `create${toPascalCase(type)}Controller`;
-  const candidate = (mod as Record<string, unknown>)[namedExport];
-  if (typeof candidate === "function") return candidate as WidgetFactory;
-
-  return undefined;
-}
-
-// Convention-based discovery: widgets/<type>/widget.* exports a controller factory.
-const widgetFactories: Record<string, WidgetFactory> = Object.entries(controllerModules).reduce(
-  (acc, [path, mod]) => {
-    const match = path.match(/\/controllers\/([^/.]+)\./);
-    if (!match) return acc;
-
-    const type = match[1];
-    const factory = resolveFactory(mod, type);
-    if (factory) acc[type] = factory;
-    return acc;
-  },
-  {} as Record<string, WidgetFactory>
-);
+const widgetFactories: Record<string, WidgetFactory> = controllersMap;
 
 function get(obj: any, path: string) {
   return path.split(".").reduce((acc: any, key: string) => (acc && acc[key] !== undefined ? acc[key] : ""), obj);
