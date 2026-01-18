@@ -8,6 +8,7 @@ COPY package*.json ./
 RUN npm ci
 
 FROM deps AS build
+RUN mkdir -p dashboards widgets themes assets jobs
 COPY . .
 RUN npm run build
 
