@@ -10,6 +10,7 @@ RUN npm ci
 FROM deps AS build
 RUN mkdir -p dashboards widgets themes assets jobs
 COPY . .
+RUN node scripts/sync-controllers.mjs
 RUN npm run build
 
 FROM base AS runner
