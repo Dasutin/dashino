@@ -16,12 +16,12 @@ FROM base AS runner
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
-COPY dashboards ./dashboards
-COPY widgets ./widgets
-COPY themes ./themes
-COPY assets ./assets
-COPY jobs ./jobs
-COPY job-runner.mjs ./job-runner.mjs
+COPY --from=build /app/dashboards ./dashboards
+COPY --from=build /app/widgets ./widgets
+COPY --from=build /app/themes ./themes
+COPY --from=build /app/assets ./assets
+COPY --from=build /app/jobs ./jobs
+COPY --from=build /app/job-runner.mjs ./job-runner.mjs
 
 # Make runtime content writable; users can bind mount these to override.
 RUN mkdir -p dashboards widgets themes assets jobs \
