@@ -77,7 +77,9 @@ const jobsDir = path.join(projectRoot, 'jobs');
 const themesDir = path.join(projectRoot, 'themes');
 const assetsDir = path.join(projectRoot, 'assets');
 // Serve built client assets (dist/web) when running the compiled server.
-const webBuildDir = path.resolve(__dirname, '../dist/web');
+// __dirname resolves to dist/server at runtime, so the client build sits at ../web
+// (avoid double "dist/dist" when resolving the path).
+const webBuildDir = path.resolve(__dirname, '../web');
 
 app.use(express.static(webBuildDir));
 const noStore = {
