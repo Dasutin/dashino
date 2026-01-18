@@ -1,0 +1,15 @@
+.message-widget {
+  display: grid;
+  gap: 6px;
+}
+
+.message-widget .body {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.message-widget .meta {
+  font-size: 12px;
+  color: #64748b;
+}

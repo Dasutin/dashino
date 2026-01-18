@@ -1,0 +1,20 @@
+.metric-widget {
+  display: grid;
+  gap: 6px;
+}
+
+.metric-widget .label {
+  font-size: 14px;
+  color: #475569;
+}
+
+.metric-widget .value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.metric-widget .delta {
+  font-size: 13px;
+  color: #16a34a;
+}

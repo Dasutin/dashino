@@ -1,0 +1,30 @@
+.dashboard.layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0px 0px 0px;
+}
+
+.dashboard .grid {
+  display: grid;
+  width: 100%;
+}
+
+.dashboard .widget {
+  background: var(--panel-bg, transparent);
+  border-radius: 20px;
+  overflow: hidden;
+  color: var(--text-color, inherit);
+}
+
+.dashboard .widget-body {
+  padding: 0px;
+}
+
+.dashboard .placeholder {
+  color: var(--muted-color, #6b7280);
+}
+
+.dashboard .empty {
+  margin-top: 16px;
+  color: var(--muted-color, #6b7280);
+}

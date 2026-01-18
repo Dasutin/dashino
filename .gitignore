@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log*
+.pnp*
+.env
+.env.local
+.env.example
+web/.env.example
+.DS_Store
+dist
+.vscode
+.idea

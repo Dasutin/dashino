@@ -1,0 +1,18 @@
+.clock-widget {
+  display: grid;
+  gap: 6px;
+  place-items: center;
+  text-align: center;
+  color: #044bf1;
+}
+
+.clock-widget .time {
+  font-size: 80px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.clock-widget .date {
+  font-size: 30px;
+  color: #1e293b;
+}

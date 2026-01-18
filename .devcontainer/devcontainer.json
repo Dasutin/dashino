@@ -1,0 +1,14 @@
+{
+  "name": "dashino",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bullseye",
+  "features": {},
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  },
+  "forwardPorts": [4040, 4173],
+  "postCreateCommand": "npm install"
+}

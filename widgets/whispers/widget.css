@@ -1,0 +1,22 @@
+.whispers-widget {
+  display: grid;
+  gap: 6px;
+}
+
+.whspers-widget .label {
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.whispers-widget .message {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.whispers-widget .meta {
+  font-size: 12px;
+  color: #94a3b8;
+}

@@ -1,0 +1,57 @@
+body.theme-demo {
+  background: #0c1426;
+  color: #e5e7eb;
+}
+
+.theme-demo {
+  background: #0c1426;
+  color: #e5e7eb;
+}
+
+.theme-demo .widget {
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.35);
+  border-radius: 20px;
+}
+
+.theme-demo .widget-body {
+  color: #e5e7eb;
+}
+
+.theme-demo .clock-widget .time {
+  color: #f8fafc;
+}
+
+.theme-demo .clock-widget .date,
+.theme-demo .metric-widget .label,
+.theme-demo .metric-widget .delta,
+.theme-demo .message-widget .meta,
+.theme-demo .wispers-widget .meta {
+  color: #cbd5e1;
+}
+
+.theme-demo .metric-widget .value,
+.theme-demo .message-widget .body,
+.theme-demo .wispers-widget .message {
+  color: #f8fafc;
+}
+
+.theme-demo .message-widget .body,
+.theme-demo .wispers-widget .message {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 10px 12px;
+  border-radius: 10px;
+}
+
+.theme-demo .controls select,
+.theme-demo .controls input[type="text"],
+.theme-demo button {
+  background: #111827;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+}
+
+.theme-demo .status {
+  background: rgba(255, 255, 255, 0.08);
+}
