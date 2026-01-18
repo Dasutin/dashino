@@ -7489,3 +7489,28 @@
 [2026-01-18T20:09:47.378Z] WARN Job process exited {"job":"hourly.js","code":3221225786,"signal":null}
 [2026-01-18T20:09:47.382Z] WARN Job process exited {"job":"forecast.js","code":3221225786,"signal":null}
 [2026-01-18T20:09:47.386Z] WARN Job process exited {"job":"ev.js","code":3221225786,"signal":null}
+[2026-01-18T20:25:07.741Z] INFO dashino server listening {"port":4040}
+[2026-01-18T20:25:07.867Z] INFO req {"method":"HEAD","path":"/","status":200,"ms":1}
+[2026-01-18T20:25:08.646Z] INFO SSE client connected {"clients":1}
+[2026-01-18T20:25:14.228Z] INFO req {"method":"GET","path":"/api/dashboards","status":200,"ms":3}
+[2026-01-18T20:25:14.230Z] INFO req {"method":"GET","path":"/api/dashboards","status":304,"ms":0}
+[2026-01-18T20:25:16.874Z] INFO req {"method":"GET","path":"/widgets/clock/widget.html","status":200,"ms":2}
+[2026-01-18T20:25:16.874Z] INFO req {"method":"GET","path":"/widgets/clock/widget.css","status":200,"ms":2}
+[2026-01-18T20:25:16.874Z] INFO req {"method":"GET","path":"/widgets/message/widget.html","status":200,"ms":2}
+[2026-01-18T20:25:16.874Z] INFO req {"method":"GET","path":"/widgets/message/widget.css","status":200,"ms":2}
+[2026-01-18T20:25:16.875Z] INFO req {"method":"GET","path":"/widgets/metric/widget.html","status":200,"ms":3}
+[2026-01-18T20:25:16.879Z] INFO req {"method":"GET","path":"/widgets/metric/widget.css","status":200,"ms":1}
+[2026-01-18T20:25:16.880Z] INFO SSE client connected {"clients":2}
+[2026-01-18T20:25:16.881Z] INFO req {"method":"GET","path":"/widgets/whispers/widget.html","status":200,"ms":2}
+[2026-01-18T20:25:16.881Z] INFO req {"method":"GET","path":"/widgets/whispers/widget.css","status":200,"ms":2}
+[2026-01-18T20:25:16.882Z] INFO req {"method":"GET","path":"/themes/demo.css","status":200,"ms":3}
+[2026-01-18T20:25:16.882Z] INFO req {"method":"GET","path":"/widgets/clock/widget.html","status":200,"ms":1}
+[2026-01-18T20:25:16.884Z] INFO req {"method":"GET","path":"/widgets/clock/widget.css","status":200,"ms":1}
+[2026-01-18T20:25:16.885Z] INFO req {"method":"GET","path":"/widgets/message/widget.html","status":200,"ms":0}
+[2026-01-18T20:25:16.886Z] INFO req {"method":"GET","path":"/widgets/message/widget.css","status":200,"ms":1}
+[2026-01-18T20:25:16.886Z] INFO req {"method":"GET","path":"/widgets/metric/widget.html","status":200,"ms":1}
+[2026-01-18T20:25:16.888Z] INFO req {"method":"GET","path":"/widgets/metric/widget.css","status":200,"ms":1}
+[2026-01-18T20:25:16.888Z] INFO req {"method":"GET","path":"/widgets/whispers/widget.html","status":200,"ms":0}
+[2026-01-18T20:25:16.890Z] INFO req {"method":"GET","path":"/widgets/whispers/widget.css","status":200,"ms":1}
+[2026-01-18T20:25:16.890Z] INFO req {"method":"GET","path":"/themes/demo.css","status":200,"ms":1}
+[2026-01-18T20:25:22.070Z] INFO SSE client disconnected {"clients":1}
