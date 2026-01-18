@@ -25,8 +25,8 @@ COPY --from=build /app/jobs ./jobs
 COPY --from=build /app/job-runner.mjs ./job-runner.mjs
 
 # Make runtime content writable; users can bind mount these to override.
-RUN mkdir -p dashboards widgets themes assets jobs \
-	&& chown -R node:node dashboards widgets themes assets jobs dist \
+RUN mkdir -p dashboards widgets themes assets jobs logs \
+	&& chown -R node:node dashboards widgets themes assets jobs logs dist \
 	&& touch .env && chown node:node .env
 
 USER node
