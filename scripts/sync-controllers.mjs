@@ -32,13 +32,19 @@ function copyControllers() {
 
     const target = path.join(controllersDir, `${type}.ts`);
     const header = '// AUTO-GENERATED FROM widgets; edit the source in widgets/<type>/widget.*\n';
-    const content = fs.readFileSync(source, 'utf-8');
+    const raw = fs.readFileSync(source, 'utf-8');
+    const content = rewriteImports(raw);
     fs.writeFileSync(target, `${header}${content}`);
     types.push(type);
     copied++;
   }
   generateIndex(types);
   return copied;
+}
+
+function rewriteImports(content) {
+  // Ensure copied controllers import types from their new location under web/src/controllers
+  return content.replace(/from\s+['"]\.\.\/\.\.\/web\/src\/types['"]/g, "from '../types'");
 }
 
 function generateIndex(types) {
