@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "node scripts/sync-controllers.mjs",
     "dev": "concurrently -k -n server,client \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "tsx watch src/server.ts",
     "dev:client": "wait-on http://localhost:4040 && vite --host 0.0.0.0 --config vite.config.ts",
