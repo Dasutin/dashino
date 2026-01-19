@@ -6,7 +6,8 @@ echo "[dashino] REBUILD_ON_START=${REBUILD_ON_START:-0}"
 maybe_rebuild() {
   if [ "$REBUILD_ON_START" = "1" ] || [ "$REBUILD_ON_START" = "true" ]; then
     echo "[dashino] Rebuilding client on start"
-    chmod u+w /app/vite.config.ts || true
+    chown node:node /app /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json 2>/dev/null || true
+    chmod u+w /app /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json 2>/dev/null || true
     node scripts/sync-controllers.mjs
     npm run build:client
     echo "[dashino] Client rebuild complete"
