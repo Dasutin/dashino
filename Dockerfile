@@ -13,11 +13,12 @@ COPY . .
 RUN node scripts/sync-controllers.mjs
 RUN npm run build
 
-# Dev runtime (slim: prod deps only, built assets, no rebuild-on-start)
+# Dev runtime (full dev deps, source, runs npm run dev for HMR)
 FROM base AS runner-dev
 ENV NODE_ENV=development
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+COPY tsconfig.json vite.config.ts ./
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/dashboards ./dashboards
 COPY --from=build /app/widgets ./widgets
@@ -25,17 +26,24 @@ COPY --from=build /app/themes ./themes
 COPY --from=build /app/assets ./assets
 COPY --from=build /app/jobs ./jobs
 COPY --from=build /app/job-runner.mjs ./job-runner.mjs
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/web ./web
+COPY --from=build /app/src ./src
+COPY --from=build /app/tsconfig.json ./tsconfig.json
+COPY --from=build /app/vite.config.ts ./vite.config.ts
 
-RUN mkdir -p dashboards widgets themes assets jobs logs \
+RUN mkdir -p dashboards widgets themes assets jobs logs scripts \
 	&& chown -R node:node /app \
+	&& chown -R node:node dashboards widgets themes assets jobs logs dist scripts web src \
+	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json \
 	&& touch .env && chown node:node .env
 
 USER node
 
 VOLUME ["/app/assets","/app/dashboards","/app/jobs","/app/themes","/app/widgets"]
 
-EXPOSE 4040
-CMD ["node", "dist/server/server.js"]
+EXPOSE 4040 4173
+CMD ["npm", "run", "dev"]
 
 # Prod runtime (default final stage; keeps current config with rebuild-on-start)
 FROM base AS runner-prod
