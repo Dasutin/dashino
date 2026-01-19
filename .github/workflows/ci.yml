@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
     tags: ['v*']
   pull_request:
 
@@ -37,18 +37,22 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/metadata-action@v5
-        id: meta
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/dashino
-          tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=sha
-            type=raw,value=latest,enable={{is_default_branch}}
-      - uses: docker/build-push-action@v6
+
+      - name: Build and push dev image (non-main)
+        if: github.ref != 'refs/heads/main'
+        uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          target: runner-dev
+          tags: ghcr.io/${{ github.repository_owner }}/dashino:dev
+
+      - name: Build and push prod image (main)
+        if: github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/dashino:latest
