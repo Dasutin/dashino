@@ -38,6 +38,9 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lowercase repo owner
+        run: echo "REPO_OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
       - name: Build and push dev image (non-main)
         if: github.ref != 'refs/heads/main'
         uses: docker/build-push-action@v6
@@ -46,7 +49,7 @@ jobs:
           file: ./Dockerfile
           push: true
           target: runner-dev
-          tags: ghcr.io/${{ github.repository_owner }}/dashino:dev
+          tags: ghcr.io/${{ env.REPO_OWNER_LC }}/dashino:dev
 
       - name: Build and push prod image (main)
         if: github.ref == 'refs/heads/main'
@@ -55,4 +58,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/dashino:latest
+          tags: ghcr.io/${{ env.REPO_OWNER_LC }}/dashino:latest
