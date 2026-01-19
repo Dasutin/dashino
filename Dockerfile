@@ -30,6 +30,7 @@ COPY --from=build /app/web ./web
 COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/vite.config.ts ./vite.config.ts
+COPY --from=build /app/start.sh ./start.sh
 
 # Make runtime content writable; users can bind mount these to override.
 RUN mkdir -p dashboards widgets themes assets jobs logs \
