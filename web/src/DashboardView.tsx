@@ -115,6 +115,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
   const stylesInjected = useRef<Set<string>>(new Set());
   const themeStylesInjected = useRef<Set<string>>(new Set());
   const bodyThemeClass = useRef<string | null>(null);
+  const mountStartedAt = useRef<number>(Date.now());
   const lastReloadAt = useRef<number>(0);
   const [connected, setConnected] = useState(false);
 
@@ -150,7 +151,11 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
           payload.type === "reload" ||
           payload.data?.reload === true;
 
-        if (shouldReload) {
+        const eventAtRaw = (payload as any).at;
+        const eventAt = typeof eventAtRaw === "number" ? eventAtRaw : Date.parse(eventAtRaw ?? "");
+        const isFresh = Number.isFinite(eventAt) ? eventAt >= mountStartedAt.current : true;
+
+        if (shouldReload && isFresh) {
           const now = Date.now();
           if (now - lastReloadAt.current > 5000) {
             lastReloadAt.current = now;
