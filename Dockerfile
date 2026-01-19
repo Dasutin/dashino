@@ -35,6 +35,7 @@ COPY --from=build /app/start.sh ./start.sh
 # Make runtime content writable; users can bind mount these to override.
 RUN mkdir -p dashboards widgets themes assets jobs logs \
 	&& mkdir -p scripts \
+	&& chown -R node:node /app \
 	&& chown -R node:node dashboards widgets themes assets jobs logs dist scripts web src \
 	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json /app/start.sh \
 	&& touch .env && chown node:node .env
