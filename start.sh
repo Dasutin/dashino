@@ -1,13 +1,20 @@
 #!/bin/sh
 set -e
 
-# Optional: rebuild client on start when controllers are provided via mounted widgets
-if [ "$REBUILD_ON_START" = "1" ] || [ "$REBUILD_ON_START" = "true" ]; then
-  echo "[dashino] Rebuilding client on start (REBUILD_ON_START=$REBUILD_ON_START)"
-  node scripts/sync-controllers.mjs
-  npm run build:client
-else
-  echo "[dashino] Skipping client rebuild on start (set REBUILD_ON_START=1 to enable)"
-fi
+echo "[dashino] REBUILD_ON_START=${REBUILD_ON_START:-0}"
 
+maybe_rebuild() {
+  if [ "$REBUILD_ON_START" = "1" ] || [ "$REBUILD_ON_START" = "true" ]; then
+    echo "[dashino] Rebuilding client on start"
+    node scripts/sync-controllers.mjs
+    npm run build:client
+    echo "[dashino] Client rebuild complete"
+  else
+    echo "[dashino] Skipping client rebuild (set REBUILD_ON_START=1 to enable)"
+  fi
+}
+
+maybe_rebuild
+
+echo "[dashino] Starting server"
 exec node dist/server/server.js
