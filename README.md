@@ -36,6 +36,14 @@ Node and React based framework that lets you build excellent dashboards.
 
 - Mounts: make them read-only (`:ro`) unless you need to edit in-place; themes/jobs often stay writable for quick tweaks.
 
+## Deployment checklist (widgets/controllers)
+
+- If you mount custom widgets/controllers at runtime, mount them to `/app/widgets` and start with `REBUILD_ON_START=1` so the client rebuilds on boot.
+- Watch the startup log for `Client rebuild complete`; if you don’t see it, the rebuild didn’t run (env missing or permission issue).
+- Verify controllers in the image with `node scripts/check-controllers-runtime.mjs` (inside the container) after startup.
+- Ensure SSE payloads include `widgetId` matching the dashboard entries; otherwise updates are ignored client-side.
+- When possible, bake widgets/controllers into the image (build from a context that already has them) to skip rebuild-on-boot and speed startup.
+
 ## Scripts
 
 - `npm run dev`: Run server (tsx watch) and client (Vite) together.

@@ -115,6 +115,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
   const stylesInjected = useRef<Set<string>>(new Set());
   const themeStylesInjected = useRef<Set<string>>(new Set());
   const bodyThemeClass = useRef<string | null>(null);
+  const lastReloadAt = useRef<number>(0);
   const [connected, setConnected] = useState(false);
 
   const widgetIds = useMemo(() => new Set(dashboard.widgets.map(w => w.id)), [dashboard.widgets]);
@@ -143,6 +144,21 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
     es.onmessage = evt => {
       try {
         const payload: StreamPayload = JSON.parse(evt.data);
+
+        const shouldReload =
+          payload.type === "reload-dashboard" ||
+          payload.type === "reload" ||
+          payload.data?.reload === true;
+
+        if (shouldReload) {
+          const now = Date.now();
+          if (now - lastReloadAt.current > 5000) {
+            lastReloadAt.current = now;
+            window.location.reload();
+          }
+          return;
+        }
+
         if (payload.widgetId && widgetIds.has(payload.widgetId)) {
           setWidgetData(current => ({ ...current, [payload.widgetId!]: payload }));
         }
