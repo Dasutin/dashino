@@ -4,7 +4,8 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = __dirname;
+// Repo root is one level up from scripts/
+const repoRoot = path.resolve(__dirname, '..');
 const widgetsDir = path.join(repoRoot, 'widgets');
 const assetsDir = path.join(repoRoot, 'dist', 'web', 'assets');
 
