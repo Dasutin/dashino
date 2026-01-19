@@ -2,6 +2,8 @@ import 'dotenv/config';
 import cors from 'cors';
 import express, { Request, Response } from 'express';
 import fs from 'fs';
+import { createGzip } from 'zlib';
+import { pipeline } from 'stream/promises';
 import path from 'path';
 import { fork, ChildProcess } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -11,7 +13,13 @@ const logDir = path.join(projectRoot, 'logs');
 if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
-const logStream = fs.createWriteStream(path.join(logDir, 'server.log'), { flags: 'a' });
+
+function logFilenameFor(date = new Date()) {
+  const d = date.toISOString().slice(0, 10); // YYYY-MM-DD
+  return path.join(logDir, `server-${d}.log`);
+}
+
+let logStream = fs.createWriteStream(logFilenameFor(), { flags: 'a' });
 const fsPromises = fs.promises;
 const cacheDisabled = Boolean(process.env.CACHE_DISABLE && /^(1|true|yes)$/i.test(process.env.CACHE_DISABLE));
 
@@ -30,6 +38,62 @@ function log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
     // best-effort; don't crash on log write errors
   }
 }
+
+async function compressFile(file: string) {
+  const gz = `${file}.gz`;
+  try {
+    await pipeline(fs.createReadStream(file), createGzip(), fs.createWriteStream(gz));
+    await fsPromises.unlink(file).catch(() => {});
+  } catch {
+    // best-effort; ignore compression errors
+  }
+}
+
+async function pruneLogs(retentionDays = 3) {
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  try {
+    const files = await fsPromises.readdir(logDir);
+    await Promise.all(
+      files.map(async f => {
+        if (!f.startsWith('server-')) return;
+        const full = path.join(logDir, f);
+        try {
+          const stat = await fsPromises.stat(full);
+          if (stat.mtimeMs < cutoff) {
+            await fsPromises.unlink(full).catch(() => {});
+          }
+        } catch {
+          // ignore stat/delete errors
+        }
+      })
+    );
+  } catch {
+    // ignore prune errors
+  }
+}
+
+async function rotateIfNeeded() {
+  const target = logFilenameFor();
+  const currentPath = (logStream as any).path as string | undefined;
+  if (currentPath === target) return;
+
+  try {
+    logStream.end();
+  } catch {
+    // ignore
+  }
+
+  if (currentPath && currentPath.endsWith('.log')) {
+    compressFile(currentPath).catch(() => {});
+  }
+
+  logStream = fs.createWriteStream(target, { flags: 'a' });
+  pruneLogs().catch(() => {});
+}
+
+// Initial rotation/prune on startup and periodic check hourly
+rotateIfNeeded();
+setInterval(rotateIfNeeded, 60 * 60 * 1000).unref();
 
 type StreamMessage = {
   widgetId?: string;
