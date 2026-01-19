@@ -12,7 +12,7 @@ Node.js and React based framework that lets you build excellent dashboards.
 - Build image: `docker build -t dashino .`
 - Run with editable content mounted:
   
-```
+```bash
 docker run -d --name dashino \
  -p 4040:4040 \
  -v ./dashboards:/app/dashboards \
@@ -26,7 +26,7 @@ docker run -d --name dashino \
 
 ## Create a dashboard
 
-1) Copy a dashboard JSON: duplicate `dashboards/demo.json` to `dashboards/`. 
+1) Copy a dashboard JSON: duplicate `dashboards/demo.json` to `dashboards/`.
 
    1) Fields:
    - `slug`: URL path and selector value (e.g., `kitchen`).
@@ -40,16 +40,16 @@ docker run -d --name dashino \
 
 ```json
 {
-	"slug": "kitchen",
-	"name": "Kitchen",
-	"theme": "main",
-	"className": "theme-main",
-	"columns": 8,
-	"gutter": 8,
-	"widgets": [
-		{ "id": "clock", "type": "clock", "position": { "w": 2, "h": 1, "x": 1, "y": 1 } },
-		{ "id": "forecast", "type": "forecast", "position": { "w": 2, "h": 1, "x": 3, "y": 1 } }
-	]
+  "slug": "kitchen",
+  "name": "Kitchen",
+  "theme": "main",
+  "className": "theme-main",
+  "columns": 8,
+  "gutter": 8,
+  "widgets": [
+    { "id": "clock", "type": "clock", "position": { "w": 2, "h": 1, "x": 1, "y": 1 } },
+    { "id": "forecast", "type": "forecast", "position": { "w": 2, "h": 1, "x": 3, "y": 1 } }
+  ]
 }
 ```
 
@@ -67,10 +67,10 @@ docker run -d --name dashino \
 
 ### Example test event (from the main page or curl)
 
-```
+```bash
 curl -X POST http://localhost:4040/api/events \
-	-H "Content-Type: application/json" \
-	-d '{"widgetId":"tomorrow","type":"tomorrow","data":{"current":{"temperature":72,"summary":"Sunny","dew_point":60}}}'
+  -H "Content-Type: application/json" \
+  -d '{"widgetId":"tomorrow","type":"tomorrow","data":{"current":{"temperature":72,"summary":"Sunny","dew_point":60}}}'
 ```
 
 ## Troubleshooting (widgets/controllers)
@@ -85,7 +85,7 @@ curl -X POST http://localhost:4040/api/events \
 1. Clone this repo in VS Code.
 2. Wait for `npm install`.
 3. Start everything in dev mode: `npm run dev` (starts Express on 4040 and Vite on 4173 with proxying). If you want to bypass the proxy, set `VITE_API_ORIGIN=http://localhost:4040` in `web/.env.local`.
-4. Visit the client at http://localhost:4173. The page loads the dashboard layout from `dashboards/` and widgets from `widgets/`, connects to `/events`, and shows live widget data. Use the "Send event" button to push a custom event through the backend.
+4. Visit the client at [http://localhost:4173]. The page loads the dashboard layout from `dashboards/` and widgets from `widgets/`, connects to `/events`, and shows live widget data. Use the "Send event" button to push a custom event through the backend.
 
 ## Scripts
 
