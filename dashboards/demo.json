@@ -3,7 +3,7 @@
   "name": "Demo Dashboard",
   "className": "theme-demo",
   "theme": "demo",
-  "columns": 8,
+  "maxColumns": 8,
   "columnWidth": 140,
   "rowHeight": 160,
   "defaultWidgetSpan": { "w": 2, "h": 1 },

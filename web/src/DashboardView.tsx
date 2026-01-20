@@ -46,7 +46,7 @@ function layoutsEqual(a: Record<string, LayoutPosition>, b: Record<string, Layou
 function loadSavedLayout(
   slug: string,
   widgets: WidgetPlacement[],
-  columns: number,
+  maxColumns: number,
   defaultSpan: { w?: number; h?: number } | undefined,
   maxRows: number
 ) {
@@ -67,7 +67,7 @@ function loadSavedLayout(
         preferred[w.id] = { x, y, w: wSpan, h: hSpan };
       }
     });
-    return materializeLayout(widgets, columns, defaultSpan, preferred, maxRows);
+    return materializeLayout(widgets, maxColumns, defaultSpan, preferred, maxRows);
   } catch {
     return undefined;
   }
@@ -94,10 +94,10 @@ function fitsAt(
   y: number,
   w: number,
   h: number,
-  columns: number
+  maxColumns: number
 ) {
   if (x < 1 || y < 1) return false;
-  if (x + w - 1 > columns) return false;
+  if (x + w - 1 > maxColumns) return false;
   for (let dx = 0; dx < w; dx++) {
     for (let dy = 0; dy < h; dy++) {
       if (occupied.has(`${x + dx},${y + dy}`)) return false;
@@ -114,10 +114,10 @@ function mark(occupied: Set<string>, x: number, y: number, w: number, h: number)
   }
 }
 
-function findSpot(occupied: Set<string>, w: number, h: number, columns: number, maxRows: number): { x: number; y: number } {
+function findSpot(occupied: Set<string>, w: number, h: number, maxColumns: number, maxRows: number): { x: number; y: number } {
   for (let row = 1; row <= maxRows; row++) {
-    for (let col = 1; col <= columns; col++) {
-      if (fitsAt(occupied, col, row, w, h, columns)) {
+    for (let col = 1; col <= maxColumns; col++) {
+      if (fitsAt(occupied, col, row, w, h, maxColumns)) {
         return { x: col, y: row };
       }
     }
@@ -128,7 +128,7 @@ function findSpot(occupied: Set<string>, w: number, h: number, columns: number, 
 
 function materializeLayout(
   widgets: WidgetPlacement[],
-  columns: number,
+  maxColumns: number,
   defaultSpan?: { w?: number; h?: number },
   preferred?: Record<string, Partial<LayoutPosition>>,
   maxRows: number = DEFAULT_MAX_ROWS
@@ -143,14 +143,14 @@ function materializeLayout(
     const desiredY = desired?.y ?? widget.position?.y;
 
     let placed = false;
-    if (desiredX && desiredY && fitsAt(occupied, desiredX, desiredY, w, h, columns)) {
+    if (desiredX && desiredY && fitsAt(occupied, desiredX, desiredY, w, h, maxColumns)) {
       layout[widget.id] = { x: desiredX, y: desiredY, w, h };
       mark(occupied, desiredX, desiredY, w, h);
       placed = true;
     }
 
     if (!placed) {
-      const spot = findSpot(occupied, w, h, columns, maxRows);
+      const spot = findSpot(occupied, w, h, maxColumns, maxRows);
       layout[widget.id] = { x: spot.x, y: spot.y, w, h };
       mark(occupied, spot.x, spot.y, w, h);
     }
@@ -261,10 +261,11 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
   const [connected, setConnected] = useState(false);
   const gridRef = useRef<HTMLElement | null>(null);
   const maxRows = dashboard.maxRows ?? DEFAULT_MAX_ROWS;
+  const maxColumns = dashboard.maxColumns ?? (dashboard as any).columns ?? 12;
   const baseLayoutRef = useRef<Record<string, LayoutPosition> | null>(null);
   const [layout, setLayout] = useState<Record<string, LayoutPosition>>(() => {
-    const saved = loadSavedLayout(dashboard.slug, dashboard.widgets, dashboard.columns, dashboard.defaultWidgetSpan, maxRows);
-    const next = saved ?? materializeLayout(dashboard.widgets, dashboard.columns, dashboard.defaultWidgetSpan, undefined, maxRows);
+    const saved = loadSavedLayout(dashboard.slug, dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, maxRows);
+    const next = saved ?? materializeLayout(dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, undefined, maxRows);
     baseLayoutRef.current = next;
     return next;
   });
@@ -285,12 +286,12 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
 
   useEffect(() => {
     setWidgetData({});
-    const saved = loadSavedLayout(dashboard.slug, dashboard.widgets, dashboard.columns, dashboard.defaultWidgetSpan, maxRows);
-    const next = saved ?? materializeLayout(dashboard.widgets, dashboard.columns, dashboard.defaultWidgetSpan, undefined, maxRows);
+    const saved = loadSavedLayout(dashboard.slug, dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, maxRows);
+    const next = saved ?? materializeLayout(dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, undefined, maxRows);
     baseLayoutRef.current = next;
     setLayout(next);
     setPendingLayoutChange(false);
-  }, [dashboard.slug, dashboard.columns, dashboard.defaultWidgetSpan, maxRows, dashboard.widgets]);
+  }, [dashboard.slug, dashboard.defaultWidgetSpan, dashboard.widgets, maxColumns, maxRows]);
 
   const handlePointerMove = useCallback(
     (event: PointerEvent) => {
@@ -316,7 +317,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
 
       const col = Math.min(
         Math.max(1, Math.floor(relX / cellW) + 1),
-        Math.max(1, dashboard.columns - spanW + 1)
+        Math.max(1, maxColumns - spanW + 1)
       );
       const row = Math.min(
         Math.max(1, Math.floor(relY / cellH) + 1),
@@ -327,7 +328,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
       dragTargetRef.current = next;
       setDragTarget(next);
     },
-    [columnWidth, gutter, rowHeight, dashboard.columns, maxRows]
+    [columnWidth, gutter, rowHeight, maxColumns, maxRows]
   );
 
   const finishDrag = useCallback(() => {
@@ -354,18 +355,18 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
       });
 
       preferred[currentId] = { ...(preferred[currentId] ?? {}), x: target.x, y: target.y };
-      const next = materializeLayout(dashboard.widgets, dashboard.columns, dashboard.defaultWidgetSpan, preferred, maxRows);
+      const next = materializeLayout(dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, preferred, maxRows);
       const base = baseLayoutRef.current ?? {};
       setPendingLayoutChange(!layoutsEqual(next, base));
       return next;
     });
-  }, [dashboard.columns, dashboard.defaultWidgetSpan, dashboard.widgets, handlePointerMove, maxRows]);
+  }, [dashboard.defaultWidgetSpan, dashboard.widgets, handlePointerMove, maxColumns, maxRows]);
 
   const handlePointerDown = useCallback(
     (widgetId: string) => (event: React.PointerEvent) => {
       if (event.button !== 0) return;
       event.preventDefault();
-      const origin = layout[widgetId] ?? materializeLayout(dashboard.widgets, dashboard.columns, dashboard.defaultWidgetSpan, undefined, maxRows)[widgetId];
+      const origin = layout[widgetId] ?? materializeLayout(dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, undefined, maxRows)[widgetId];
       if (!origin) return;
       dragState.current = {
         id: widgetId,
@@ -382,7 +383,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
       window.addEventListener("pointerup", finishDrag, true);
       window.addEventListener("pointercancel", finishDrag, true);
     },
-    [dashboard.columns, dashboard.defaultWidgetSpan, dashboard.widgets, finishDrag, handlePointerMove, layout, maxRows]
+    [dashboard.defaultWidgetSpan, dashboard.widgets, finishDrag, handlePointerMove, layout, maxColumns, maxRows]
   );
 
   useEffect(
@@ -610,7 +611,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
         }}
         className={`grid ${overlayVisible ? "grid-editing" : ""}`}
         style={{
-          gridTemplateColumns: `repeat(${dashboard.columns}, ${dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH}px)`,
+          gridTemplateColumns: `repeat(${maxColumns}, ${dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH}px)`,
           gridAutoRows: `${dashboard.rowHeight ?? DEFAULT_ROW_HEIGHT}px`,
           gap: `${dashboard.gutter ?? DEFAULT_GUTTER}px`,
           justifyContent: "center"
@@ -621,10 +622,10 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
             className="grid-overlay"
             ref={overlayRef}
             style={{
-              gridTemplateColumns: `repeat(${dashboard.columns}, ${dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH}px)`,
+              gridTemplateColumns: `repeat(${maxColumns}, ${dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH}px)`,
               gridTemplateRows: `repeat(${maxRows}, ${dashboard.rowHeight ?? DEFAULT_ROW_HEIGHT}px)`,
               gap: `${dashboard.gutter ?? DEFAULT_GUTTER}px`,
-              width: `${dashboard.columns * (dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH) + (dashboard.columns - 1) * (dashboard.gutter ?? DEFAULT_GUTTER)}px`,
+              width: `${maxColumns * (dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH) + (maxColumns - 1) * (dashboard.gutter ?? DEFAULT_GUTTER)}px`,
               height: `${maxRows * (dashboard.rowHeight ?? DEFAULT_ROW_HEIGHT) + (maxRows - 1) * (dashboard.gutter ?? DEFAULT_GUTTER)}px`
             }}
           >
@@ -639,7 +640,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
                 }}
               />
             ) : null}
-            {Array.from({ length: dashboard.columns * maxRows }).map((_, idx) => (
+            {Array.from({ length: maxColumns * maxRows }).map((_, idx) => (
               <div key={`cell-${idx}`} className="grid-cell" />
             ))}
           </div>

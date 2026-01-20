@@ -114,7 +114,7 @@ type WidgetPlacement = {
 type Dashboard = {
   slug: string;
   name: string;
-  columns: number;
+  maxColumns: number;
   gutter?: number;
   widgets: WidgetPlacement[];
 };

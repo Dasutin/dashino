@@ -33,8 +33,8 @@ docker run -d --name dashino \
    - `name`: Display name in the selector.
    - `theme`: Optional CSS file in `web/themes/<theme>.css` to load.
    - `className`: Optional body class to toggle (e.g., `theme-main`).
-   - `maxRows`: Optional grid height cap (defaults to 200). Constrains placement and the edit-mode overlay.
-   - `columns` / `gutter`: Grid sizing (each widget uses column/row spans).
+  - `maxRows`: Optional grid height cap (defaults to 200). Constrains placement and the edit-mode overlay.
+  - `maxColumns` / `gutter`: Grid sizing (each widget uses column/row spans).
    - `widgets`: Array of placements `{ id, type, title?, position { w, h, x, y } }`.
 
 ### Example dashboard JSON
@@ -45,7 +45,7 @@ docker run -d --name dashino \
   "name": "Kitchen",
   "theme": "main",
   "className": "theme-main",
-  "columns": 8,
+  "maxColumns": 8,
   "gutter": 8,
   "widgets": [
     { "id": "clock", "type": "clock", "position": { "w": 2, "h": 1, "x": 1, "y": 1 } },

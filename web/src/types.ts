@@ -17,7 +17,7 @@ export type Dashboard = {
   name: string;
   className?: string;
   theme?: string;
-  columns: number;
+  maxColumns: number;
   gutter?: number;
   columnWidth?: number;
   rowHeight?: number;
