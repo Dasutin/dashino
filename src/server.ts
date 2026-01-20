@@ -326,6 +326,75 @@ app.get('/api/dashboards', async (_req: Request, res: Response) => {
   res.json({ dashboards });
 });
 
+app.post('/api/dashboards/:slug/layout', async (req: Request, res: Response) => {
+  const slug = req.params.slug;
+  const layout = req.body?.layout as Record<string, { x?: number; y?: number; w?: number; h?: number }> | undefined;
+
+  if (!layout || typeof layout !== 'object') {
+    res.status(400).json({ error: 'layout object required' });
+    return;
+  }
+
+  try {
+    const files = (await fsPromises.readdir(dashboardsDir)).filter(f => f.endsWith('.json'));
+    let found = false;
+
+    for (const file of files) {
+      const full = path.join(dashboardsDir, file);
+      const raw = await fsPromises.readFile(full, 'utf-8');
+      let json: Dashboard;
+      try {
+        json = JSON.parse(raw) as Dashboard;
+      } catch (err) {
+        log('warn', 'failed to parse dashboard for layout save', { file, error: `${err}` });
+        continue;
+      }
+
+      if (json.slug !== slug) continue;
+
+      found = true;
+      const updatedWidgets = json.widgets.map(w => {
+        const l = layout[w.id];
+        if (!l) return w;
+        const pos = w.position ?? {};
+
+        const next = { ...pos } as { w?: number; h?: number; x?: number; y?: number };
+        if (Number.isFinite(l.x)) next.x = Number(l.x);
+        if (Number.isFinite(l.y)) next.y = Number(l.y);
+        if (Number.isFinite(l.w)) next.w = Number(l.w);
+        if (Number.isFinite(l.h)) next.h = Number(l.h);
+        return { ...w, position: next };
+      });
+
+      const nextDashboard: Dashboard = { ...json, widgets: updatedWidgets };
+
+      // Pretty-print with widgets one per line
+      const { widgets, ...rest } = nextDashboard;
+      const base = JSON.stringify({ ...rest, widgets: [] }, null, 2);
+      const widgetsBlock = widgets
+        .map(w => `    ${JSON.stringify(w)}`)
+        .join(',\n');
+      const content = base.replace(
+        /"widgets": \[\]/,
+        widgetsBlock.length > 0 ? `"widgets": [\n${widgetsBlock}\n  ]` : '"widgets": []'
+      );
+
+      await fsPromises.writeFile(full, `${content}\n`, 'utf-8');
+      dashboardsDirty = true;
+      log('info', 'dashboard layout saved', { slug, file });
+      res.json({ ok: true });
+      return;
+    }
+
+    if (!found) {
+      res.status(404).json({ error: 'dashboard not found' });
+    }
+  } catch (err) {
+    log('error', 'failed to save layout', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to save layout' });
+  }
+});
+
 app.post('/api/events', (req: Request, res: Response) => {
   const { type = 'message', data = {}, widgetId } = req.body ?? {};
   broadcast({ widgetId, type, data, at: new Date().toISOString() });

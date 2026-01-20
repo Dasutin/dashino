@@ -21,6 +21,7 @@ export type Dashboard = {
   gutter?: number;
   columnWidth?: number;
   rowHeight?: number;
+  maxRows?: number;
   defaultWidgetSpan?: { w?: number; h?: number };
   widgets: WidgetPlacement[];
 };
