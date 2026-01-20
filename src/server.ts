@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import cors from 'cors';
+import crypto from 'crypto';
 import express, { Request, Response } from 'express';
 import fs from 'fs';
 import { createGzip } from 'zlib';
@@ -25,6 +26,7 @@ const cacheDisabled = Boolean(process.env.CACHE_DISABLE && /^(1|true|yes)$/i.tes
 
 const app = express();
 const port = process.env.PORT ? Number(process.env.PORT) : 4040;
+const jsonLimit = process.env.JSON_BODY_LIMIT || '256kb';
 
 type LogLevel = 'info' | 'warn' | 'error';
 function log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
@@ -118,7 +120,7 @@ type Dashboard = {
 };
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: jsonLimit }));
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -244,6 +246,55 @@ function sendCache(res: Response) {
   });
 }
 
+type WebhookTarget = {
+  source: string;
+  secretEnv: string;
+  widgetId?: string;
+  type?: string;
+};
+
+const webhookTargets = buildWebhookTargets();
+const webhookSecretHeader = 'x-webhook-secret';
+
+function normalizeEnvKey(input: string) {
+  return input
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_');
+}
+
+function buildWebhookTargets(): Map<string, WebhookTarget> {
+  const targets = new Map<string, WebhookTarget>();
+  const list = (process.env.WEBHOOK_SOURCES || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  for (const source of list) {
+    const normalized = source.toLowerCase();
+    const envKey = normalizeEnvKey(source);
+    targets.set(normalized, {
+      source: normalized,
+      secretEnv: `WEBHOOK_SECRET_${envKey}`,
+      widgetId: process.env[`WEBHOOK_${envKey}_WIDGET_ID`],
+      type: process.env[`WEBHOOK_${envKey}_TYPE`] || normalized
+    });
+  }
+
+  return targets;
+}
+
+function safeCompareSecret(a: string, b: string) {
+  try {
+    const bufA = Buffer.from(a, 'utf8');
+    const bufB = Buffer.from(b, 'utf8');
+    if (bufA.length !== bufB.length) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+  } catch {
+    return false;
+  }
+}
+
 app.get('/events', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -278,6 +329,53 @@ app.get('/api/dashboards', async (_req: Request, res: Response) => {
 app.post('/api/events', (req: Request, res: Response) => {
   const { type = 'message', data = {}, widgetId } = req.body ?? {};
   broadcast({ widgetId, type, data, at: new Date().toISOString() });
+  res.status(202).json({ ok: true });
+});
+
+app.post('/api/webhooks/:source', (req: Request, res: Response) => {
+  const source = (req.params.source || '').toLowerCase();
+  const target = webhookTargets.get(source);
+
+  if (!target) {
+    res.status(404).json({ error: 'unknown webhook' });
+    return;
+  }
+
+  const secret = process.env[target.secretEnv];
+  if (!secret) {
+    log('warn', 'webhook secret not set; webhook disabled', { source, env: target.secretEnv });
+    res.status(503).json({ error: 'webhook disabled' });
+    return;
+  }
+
+  const provided = req.header(webhookSecretHeader) || '';
+  if (!provided || !safeCompareSecret(provided, secret)) {
+    log('warn', 'webhook auth failed', { source });
+    res.status(401).json({ error: 'unauthorized' });
+    return;
+  }
+
+  const payload = req.body && typeof req.body === 'object' ? req.body : {};
+  const { data: bodyData, widgetId: bodyWidgetId, type: bodyType, ...rest } = payload as Record<string, unknown>;
+
+  const widgetId = (typeof bodyWidgetId === 'string' && bodyWidgetId) || target.widgetId;
+  const type = (typeof bodyType === 'string' && bodyType) || target.type || source;
+  const data = bodyData !== undefined ? bodyData : rest;
+
+  if (!widgetId && !type) {
+    res.status(400).json({ error: 'widgetId or type required' });
+    return;
+  }
+
+  const enriched: StreamMessage = {
+    widgetId,
+    type,
+    data,
+    at: new Date().toISOString()
+  };
+
+  broadcast(enriched);
+  log('info', 'webhook accepted', { source, widgetId, type });
   res.status(202).json({ ok: true });
 });
 

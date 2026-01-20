@@ -99,5 +99,24 @@ curl -X POST http://localhost:4040/api/events \
 
 - `GET /events`: Subscribe to the SSE stream. Sends a `ready` event immediately and keeps the connection open.
 - `POST /api/events`: Broadcast a custom event body `{ type, data, widgetId }` to all listeners (optionally target a widget).
+- `POST /api/webhooks/:source`: Validates `X-Webhook-Secret` and broadcasts the JSON body (or `body.data`) to the configured widget/type for that source.
 - `GET /api/health`: Basic readiness endpoint.
 - `GET /api/dashboards`: Returns available dashboards and layout metadata.
+
+### Webhooks
+
+- Declare sources with `WEBHOOK_SOURCES` (comma separated). Each source name becomes the `:source` path segment.
+- Secrets live in `WEBHOOK_SECRET_<SOURCE>` (name uppercased, non-alphanumerics become `_`). Requests must send the secret in the `X-Webhook-Secret` header.
+- Optional defaults per source:
+  - `WEBHOOK_<SOURCE>_WIDGET_ID`: Force events to a widget ID (payload `widgetId` overrides only if present).
+  - `WEBHOOK_<SOURCE>_TYPE`: Force an event type (payload `type` overrides only if present; default is the source name).
+- Payload rules: JSON only (default 256kb limit). If the body has a `data` field it is broadcast; otherwise the remaining top-level fields are sent as `data`. Either `widgetId` or `type` must resolve after defaults.
+
+### Webhook example payload
+
+```bash
+curl -X POST http://localhost:4040/api/webhooks/github \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Secret: $WEBHOOK_SECRET_GITHUB" \
+  -d '{"data":{"message":"hello from webhook"}}'
+```
