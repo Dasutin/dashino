@@ -13,7 +13,7 @@ COPY . .
 RUN node scripts/sync-controllers.mjs
 RUN npm run build
 
-# Dev runtime (full dev deps, source, runs npm run dev for HMR)
+# Dev runtime (full deps, uses start-dev.sh to honor REBUILD_ON_START then run npm run dev)
 FROM base AS runner-dev
 ENV NODE_ENV=development
 COPY package*.json ./
@@ -31,19 +31,22 @@ COPY --from=build /app/web ./web
 COPY --from=build /app/src ./src
 COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/vite.config.ts ./vite.config.ts
+COPY --from=build /app/start.sh ./start.sh
+COPY --from=build /app/start-dev.sh ./start-dev.sh
 
 RUN mkdir -p dashboards widgets themes assets jobs logs scripts \
 	&& chown -R node:node /app \
 	&& chown -R node:node dashboards widgets themes assets jobs logs dist scripts web src \
-	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json \
-	&& touch .env && chown node:node .env
+	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json /app/start.sh /app/start-dev.sh \
+	&& touch .env && chown node:node .env \
+	&& chmod +x ./start.sh ./start-dev.sh
 
 USER node
 
 VOLUME ["/app/assets","/app/dashboards","/app/jobs","/app/themes","/app/widgets"]
 
 EXPOSE 4040 4173
-CMD ["npm", "run", "dev"]
+CMD ["sh", "./start-dev.sh"]
 
 # Prod runtime (default final stage; keeps current config with rebuild-on-start)
 FROM base AS runner-prod
