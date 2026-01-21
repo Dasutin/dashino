@@ -33,8 +33,9 @@ docker run -d --name dashino \
    - `name`: Display name in the selector.
    - `theme`: Optional CSS file in `web/themes/<theme>.css` to load.
    - `className`: Optional body class to toggle (e.g., `theme-main`).
-  - `maxRows`: Optional grid height cap (defaults to 200). Constrains placement and the edit-mode overlay.
-  - `maxColumns` / `gutter`: Grid sizing (each widget uses column/row spans).
+  - `maxRows`: Optional grid height cap (defaults to 3). Constrains placement and the edit-mode overlay.
+  - `maxColumns` / `gutter`: Grid sizing (each widget uses column/row spans). Defaults to 4 columns and 16px gutter when omitted.
+  - `columnWidth` / `rowHeight`: Optional pixel sizes for grid cells. Defaults to 300x360 when omitted.
    - `widgets`: Array of placements `{ id, type, title?, position { w, h, x, y } }`.
 
 ### Example dashboard JSON

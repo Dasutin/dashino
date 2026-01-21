@@ -3,6 +3,7 @@ import type { WidgetFactory } from '../types';
 
 import * as clock from './clock';
 import * as ev from './ev';
+import * as graph from './graph';
 import * as hourly from './hourly';
 import * as message from './message';
 import * as metric from './metric';
@@ -23,6 +24,7 @@ function resolveFactory(mod: any): WidgetFactory | undefined {
 const controllers: Record<string, WidgetFactory> = {
   'clock': resolveFactory(clock),
   'ev': resolveFactory(ev),
+  'graph': resolveFactory(graph),
   'hourly': resolveFactory(hourly),
   'message': resolveFactory(message),
   'metric': resolveFactory(metric),

@@ -1,12 +1,12 @@
 export default {
   interval: 5000,
-  widgetId: 'metric-1',
+  widgetId: 'metric',
   type: 'metric',
   run: emit => {
     const value = Math.random() * 1000;
     const delta = (Math.random() * 10 - 5).toFixed(2);
     emit({
-      widgetId: 'metric-1',
+      widgetId: 'metric',
       type: 'metric',
       data: {
         label: 'Random throughput',

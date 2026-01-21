@@ -1,9 +1,9 @@
 .whispers-widget {
   display: grid;
-  gap: 6px;
+  gap: 10px;
 }
 
-.whspers-widget .label {
+.whispers-widget .label {
   font-size: 12px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -11,9 +11,14 @@
 }
 
 .whispers-widget .message {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   color: #0f172a;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .whispers-widget .meta {

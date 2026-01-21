@@ -16,6 +16,7 @@ jobs/*
 !jobs/demo.js
 !jobs/message.js
 !jobs/metric.js
+!jobs/graph.js
 themes/*
 !themes/demo.css
 widgets/*
@@ -25,6 +26,8 @@ widgets/*
 !widgets/message/**
 !widgets/metric
 !widgets/metric/**
+!widgets/graph
+!widgets/graph/**
 !widgets/wispers
 !widgets/wispers/**
 web/src/controllers/*

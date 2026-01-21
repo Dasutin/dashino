@@ -8,16 +8,16 @@ const sampleMessages = [
 
 export default {
   interval: 7000,
-  widgetId: 'message-1',
+  widgetId: 'message',
   type: 'message',
   run: emit => {
     const pick = sampleMessages[Math.floor(Math.random() * sampleMessages.length)];
     emit({
-      widgetId: 'message-1',
+      widgetId: 'message',
       type: 'message',
       data: {
         text: pick,
-        source: 'jobs/message'
+        source: 'Demo feed'
       },
       at: new Date().toISOString()
     });

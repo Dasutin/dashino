@@ -9,11 +9,13 @@ import type {
 } from "./types";
 import "./dashboard.css";
 import controllersMap from "./controllers/generated";
+import { loadDebugFromStorage, parseDebugFromUrl, saveDebugToStorage } from "./debugOverlay";
 
 const DEFAULT_GUTTER = 16;
-const DEFAULT_COLUMN_WIDTH = 160;
-const DEFAULT_ROW_HEIGHT = 180;
-const DEFAULT_MAX_ROWS = 200;
+const DEFAULT_COLUMN_WIDTH = 300;
+const DEFAULT_ROW_HEIGHT = 360;
+const DEFAULT_MAX_ROWS = 3;
+const DEFAULT_MAX_COLUMNS = 4;
 
 const widgetFactories: Record<string, WidgetFactory> = controllersMap;
 
@@ -29,6 +31,36 @@ function renderTemplate(template: string, data: Record<string, unknown>) {
 }
 
 type LayoutPosition = { x: number; y: number; w: number; h: number };
+
+type WidgetDebugInfo = {
+  lastEventAt: number | null;
+  lastEventType: string | null;
+  lastEventSize: number | null;
+  cached: boolean | null;
+  fetchedAt: string | null;
+  error: string | null;
+  updateCount: number;
+};
+
+function formatDebugTime(ms: number | null) {
+  if (!Number.isFinite(ms) || ms === null) return "--";
+  return new Date(ms).toLocaleTimeString();
+}
+
+function truncateError(value: unknown, limit = 80) {
+  if (value === null || value === undefined) return null;
+  const text = String(value);
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}…`;
+}
+
+function isInputLike(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return true;
+  if (target.isContentEditable) return true;
+  return false;
+}
 
 function layoutsEqual(a: Record<string, LayoutPosition>, b: Record<string, LayoutPosition>) {
   const aKeys = Object.keys(a);
@@ -168,9 +200,26 @@ type WidgetCardProps = {
   dragStyle?: CSSProperties;
   isDragging?: boolean;
   onPointerDown?: (evt: React.PointerEvent) => void;
+  debugEnabled?: boolean;
+  debugInfo?: WidgetDebugInfo;
+  sseConnected?: boolean;
+  lastSseAt?: number | null;
 };
 
-function WidgetCard({ widget, position, template, payload, defaultSpan, dragStyle, isDragging, onPointerDown }: WidgetCardProps) {
+function WidgetCard({
+  widget,
+  position,
+  template,
+  payload,
+  defaultSpan,
+  dragStyle,
+  isDragging,
+  onPointerDown,
+  debugEnabled,
+  debugInfo,
+  sseConnected,
+  lastSseAt
+}: WidgetCardProps) {
   const ref = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<WidgetController | null>(null);
 
@@ -227,6 +276,32 @@ function WidgetCard({ widget, position, template, payload, defaultSpan, dragStyl
     ? { background: "transparent", padding: 0 }
     : undefined;
 
+  const info: WidgetDebugInfo = debugInfo ?? {
+    lastEventAt: null,
+    lastEventType: null,
+    lastEventSize: null,
+    cached: null,
+    fetchedAt: null,
+    error: null,
+    updateCount: 0
+  };
+
+  const overlay = debugEnabled ? (
+    <div className={`widget-debug-overlay ${sseConnected ? "" : "disconnected"}`}>
+      <div>id: {widget.id}</div>
+      <div>type: {widget.type}</div>
+      <div>updates: {info.updateCount}</div>
+      <div>at: {formatDebugTime(info.lastEventAt)}</div>
+      <div>event: {info.lastEventType ?? "--"}</div>
+      <div>cached: {info.cached === null ? "--" : String(info.cached)}</div>
+      <div>bytes: {info.lastEventSize ?? "--"}</div>
+      {info.fetchedAt ? <div>fetchedAt: {info.fetchedAt}</div> : null}
+      {info.error ? <div>error: {info.error}</div> : null}
+      <div>sse: {sseConnected ? "connected" : "disconnected"}</div>
+      <div>lastSSE: {formatDebugTime(lastSseAt ?? null)}</div>
+    </div>
+  ) : null;
+
   return (
     <article
       key={widget.id}
@@ -234,6 +309,7 @@ function WidgetCard({ widget, position, template, payload, defaultSpan, dragStyl
       style={articleStyle}
       onPointerDownCapture={onPointerDown}
     >
+      {overlay}
       <div
         className="widget-body"
         ref={ref}
@@ -259,9 +335,16 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
   const mountStartedAt = useRef<number>(Date.now());
   const lastReloadAt = useRef<number>(0);
   const [connected, setConnected] = useState(false);
+  const [debugEnabled, setDebugEnabled] = useState<boolean>(() => {
+    const fromUrl = parseDebugFromUrl();
+    if (fromUrl !== null) return fromUrl;
+    return loadDebugFromStorage();
+  });
+  const [debugInfo, setDebugInfo] = useState<Record<string, WidgetDebugInfo>>({});
+  const [lastSseAt, setLastSseAt] = useState<number | null>(null);
   const gridRef = useRef<HTMLElement | null>(null);
   const maxRows = dashboard.maxRows ?? DEFAULT_MAX_ROWS;
-  const maxColumns = dashboard.maxColumns ?? (dashboard as any).columns ?? 12;
+  const maxColumns = dashboard.maxColumns ?? (dashboard as any).columns ?? DEFAULT_MAX_COLUMNS;
   const baseLayoutRef = useRef<Record<string, LayoutPosition> | null>(null);
   const [layout, setLayout] = useState<Record<string, LayoutPosition>>(() => {
     const saved = loadSavedLayout(dashboard.slug, dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, maxRows);
@@ -292,6 +375,32 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
     setLayout(next);
     setPendingLayoutChange(false);
   }, [dashboard.slug, dashboard.defaultWidgetSpan, dashboard.widgets, maxColumns, maxRows]);
+
+  const toggleDebug = useCallback(() => setDebugEnabled(prev => !prev), []);
+
+  useEffect(() => {
+    saveDebugToStorage(debugEnabled);
+  }, [debugEnabled]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== "d" && event.key !== "D") return;
+      if (isInputLike(event.target)) return;
+      toggleDebug();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [toggleDebug]);
+
+  useEffect(() => {
+    setDebugInfo(prev => {
+      const next: Record<string, WidgetDebugInfo> = {};
+      dashboard.widgets.forEach(w => {
+        if (prev[w.id]) next[w.id] = prev[w.id];
+      });
+      return next;
+    });
+  }, [dashboard.widgets]);
 
   const handlePointerMove = useCallback(
     (event: PointerEvent) => {
@@ -456,6 +565,18 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
 
     es.onmessage = evt => {
       try {
+        const now = Date.now();
+        setLastSseAt(now);
+
+        let eventSize: number | null = null;
+        if (typeof evt.data === "string") {
+          try {
+            eventSize = new TextEncoder().encode(evt.data).length;
+          } catch {
+            eventSize = evt.data.length;
+          }
+        }
+
         const payload: StreamPayload = JSON.parse(evt.data);
 
         const shouldReload =
@@ -465,6 +586,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
 
         const eventAtRaw = (payload as any).at;
         const eventAt = typeof eventAtRaw === "number" ? eventAtRaw : Date.parse(eventAtRaw ?? "");
+        const eventAtMs = Number.isFinite(eventAt) ? eventAt : now;
         const isFresh = Number.isFinite(eventAt) ? eventAt >= mountStartedAt.current : true;
 
         if (shouldReload && isFresh) {
@@ -477,6 +599,35 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
         }
 
         if (payload.widgetId && widgetIds.has(payload.widgetId)) {
+          const dataAny = (payload as any)?.data ?? {};
+          const cached = (dataAny as any)?.cached;
+          const fetchedAt = (dataAny as any)?.fetchedAt ?? null;
+          const errorVal = (dataAny as any)?.error ?? null;
+
+          setDebugInfo(prev => {
+            const prevInfo = prev[payload.widgetId!] ?? {
+              lastEventAt: null,
+              lastEventType: null,
+              lastEventSize: null,
+              cached: null,
+              fetchedAt: null,
+              error: null,
+              updateCount: 0
+            };
+
+            const nextInfo: WidgetDebugInfo = {
+              lastEventAt: eventAtMs,
+              lastEventType: payload.type ?? null,
+              lastEventSize: eventSize,
+              cached: cached === undefined ? prevInfo.cached : Boolean(cached),
+              fetchedAt: fetchedAt ?? prevInfo.fetchedAt,
+              error: truncateError(errorVal),
+              updateCount: (prevInfo.updateCount ?? 0) + 1
+            };
+
+            return { ...prev, [payload.widgetId!]: nextInfo };
+          });
+
           setWidgetData(current => ({ ...current, [payload.widgetId!]: payload }));
         }
         setConnected(true);
@@ -663,6 +814,10 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
               isDragging={isDragging}
               dragStyle={dragStyle}
               onPointerDown={handlePointerDown(widget.id)}
+              debugEnabled={debugEnabled}
+              debugInfo={debugInfo[widget.id]}
+              sseConnected={connected}
+              lastSseAt={lastSseAt}
             />
           );
         })}

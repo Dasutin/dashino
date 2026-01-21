@@ -80,10 +80,34 @@
   color: var(--text-color, inherit);
   transition: transform 80ms ease, box-shadow 80ms ease, outline-color 80ms ease;
   cursor: grab;
+  height: 100%;
+  position: relative;
 }
 
 .dashboard .widget-body {
   padding: 0px;
+  height: 100%;
+}
+
+.widget-debug-overlay {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  pointer-events: none;
+  z-index: 10;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  max-width: 90%;
+  white-space: pre-wrap;
+}
+
+.widget-debug-overlay.disconnected {
+  background: rgba(120, 0, 0, 0.55);
 }
 
 .dashboard .widget.widget-dragging {

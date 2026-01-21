@@ -1,20 +1,33 @@
 .metric-widget {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .metric-widget .label {
-  font-size: 14px;
-  color: #475569;
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.35px;
+}
+
+.metric-widget .value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
 .metric-widget .value {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: 800;
-  color: #0f172a;
+  color: inherit;
+  line-height: 1.1;
 }
 
 .metric-widget .delta {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
   color: #16a34a;
+  white-space: nowrap;
+  opacity: 0.9;
 }

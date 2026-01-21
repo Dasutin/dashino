@@ -1,0 +1,44 @@
+.graph-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.graph-widget .header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.graph-widget .title {
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.graph-widget .meta {
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+.graph-widget .chart-wrap {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 200px;
+  height: 100%;
+}
+
+.graph-widget canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}

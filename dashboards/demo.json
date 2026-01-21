@@ -3,15 +3,13 @@
   "name": "Demo Dashboard",
   "className": "theme-demo",
   "theme": "demo",
-  "maxColumns": 8,
-  "columnWidth": 140,
-  "rowHeight": 160,
-  "defaultWidgetSpan": { "w": 2, "h": 1 },
-  "gutter": 16,
+  "maxRows": 4,
+  "maxColumns": 4,
   "widgets": [
-    { "id": "clock-demo", "type": "clock", "title": "Clock", "position": { "w": 2, "h": 1, "x": 1, "y": 1 } },
-    { "id": "message-demo", "type": "message", "title": "Message", "position": { "w": 4, "h": 1, "x": 3, "y": 1 } },
-    { "id": "metric-demo", "type": "metric", "title": "Metric", "position": { "w": 2, "h": 1, "x": 7, "y": 1 } },
-    { "id": "whispers-demo", "type": "whispers", "title": "Whispers", "position": { "w": 8, "h": 2, "x": 1, "y": 2 } }
+    {"id":"clock","type":"clock","title":"Clock","position":{"w":2,"h":1,"x":1,"y":1}},
+    {"id":"message","type":"message","title":"Message","position":{"w":1,"h":1,"x":3,"y":1}},
+    {"id":"metric","type":"metric","title":"Metric","position":{"w":1,"h":1,"x":4,"y":1}},
+    {"id":"whispers","type":"whispers","title":"Whispers","position":{"w":1,"h":1,"x":1,"y":2}},
+    {"id":"graph","type":"graph","title":"Graph","position":{"w":2,"h":1,"x":2,"y":2}}
   ]
 }
