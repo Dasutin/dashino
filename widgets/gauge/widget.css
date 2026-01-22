@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: 10px;
   height: 100%;
+  overflow: hidden;
 }
 
 .gauge-widget .gauge-header {
@@ -13,16 +14,20 @@
 .gauge-widget .gauge-body {
   flex: 1;
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   align-items: center;
+  align-content: center;
   justify-items: center;
-  gap: 6px;
+  gap: 4px;
+  padding-top: 6px;
+  padding-bottom: 0;
 }
 
 .gauge-widget .gauge-svg {
   width: 100%;
   max-width: 220px;
   height: auto;
+  max-height: 130px;
 }
 
 .gauge-bg {
@@ -55,4 +60,5 @@
 .gauge-label {
   font-size: 12px;
   opacity: 0.85;
+  margin-top: -6px;
 }

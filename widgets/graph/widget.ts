@@ -18,7 +18,7 @@ function createChart(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, h
     labels: [],
     datasets: [
       {
-        label: "Value",
+        label: "",
         data: [],
         borderColor: "#38bdf8",
         backgroundColor: "rgba(56, 189, 248, 0.15)",
@@ -35,7 +35,7 @@ function createChart(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, h
     maintainAspectRatio: false,
     scales: {
       x: {
-        reverse: true,
+        reverse: false,
         ticks: { maxTicksLimit: 6 },
         grid: { color: "rgba(148, 163, 184, 0.15)" }
       },

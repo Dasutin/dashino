@@ -4,7 +4,7 @@ const frames = [
     sandbox: 'allow-scripts allow-same-origin allow-presentation'
   },
   {
-    url: 'https://www.openstreetmap.org/export/embed.html?bbox=13.37%2C52.50%2C13.45%2C52.52&layer=mapnik',
+    url: 'https://www.openstreetmap.org/export/embed.html?bbox=-80.2%2C40.3%2C-71.7%2C45.1&layer=mapnik',
     sandbox: 'allow-scripts allow-same-origin allow-forms'
   }
 ];

@@ -85,8 +85,9 @@
 }
 
 .dashboard .widget-body {
-  padding: 0px;
+  padding: 12px;
   height: 100%;
+  box-sizing: border-box;
   container-type: size;
   container-name: widget;
   --widget-w: auto;
