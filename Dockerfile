@@ -43,7 +43,7 @@ COPY --from=build /app/assets     /defaults/assets
 COPY --from=build /app/jobs       /defaults/jobs
 
 # ---- NEW: entrypoint that seeds volumes on first run ----
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 
 RUN mkdir -p dashboards widgets themes assets jobs logs scripts \
 	&& chown -R node:node /app \
@@ -90,7 +90,7 @@ COPY --from=build /app/assets     /defaults/assets
 COPY --from=build /app/jobs       /defaults/jobs
 
 # ---- NEW: entrypoint that seeds volumes on first run ----
-COPY docker/entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 
 # Make runtime content writable; users can bind mount these to override.
 RUN mkdir -p dashboards widgets themes assets jobs logs \
