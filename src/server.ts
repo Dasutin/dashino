@@ -3,6 +3,7 @@ import cors from 'cors';
 import crypto from 'crypto';
 import express, { Request, Response } from 'express';
 import fs from 'fs';
+import archiver from 'archiver';
 import { createGzip } from 'zlib';
 import { pipeline } from 'stream/promises';
 import path from 'path';
@@ -527,6 +528,75 @@ async function startJobs() {
 type Health = { status: string };
 app.get('/api/health', (_req: Request, res: Response<Health>) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/api/backup.zip', async (_req: Request, res: Response) => {
+  const createdAt = new Date();
+  const timestamp = createdAt.toISOString().replace(/[:.]/g, '-');
+  const filename = `dashino-backup-${timestamp}.zip`;
+
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  const includes: string[] = [];
+  const sources = [
+    { name: 'dashboards', dir: dashboardsDir },
+    { name: 'themes', dir: themesDir },
+    { name: 'widgets', dir: widgetsDir },
+    { name: 'jobs', dir: jobsDir }
+  ];
+
+  const handleError = (err: unknown) => {
+    log('error', 'backup zip error', { error: `${err}` });
+    try {
+      archive.destroy();
+    } catch {
+      // ignore
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'failed to create backup' });
+    } else {
+      try {
+        res.end();
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Cache-Control', 'no-store');
+
+  archive.on('error', handleError);
+  res.on('close', () => {
+    try {
+      archive.destroy();
+    } catch {
+      // ignore
+    }
+  });
+
+  archive.pipe(res);
+
+  for (const src of sources) {
+    if (!fs.existsSync(src.dir)) {
+      log('warn', 'backup source missing', { dir: src.dir });
+      continue;
+    }
+    includes.push(src.name);
+    archive.directory(src.dir, src.name);
+  }
+
+  const manifest = {
+    createdAt: createdAt.toISOString(),
+    includes
+  };
+  archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+
+  try {
+    await archive.finalize();
+  } catch (err) {
+    handleError(err);
+  }
 });
 
 app.get('/widgets/:type/widget.:ext', async (req: Request, res: Response) => {

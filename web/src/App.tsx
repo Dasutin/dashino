@@ -39,6 +39,8 @@ function App() {
     return raw.replace(/\/$/, "");
   }, []);
 
+  const backupUrl = useMemo(() => `${apiOrigin}/api/backup.zip`, [apiOrigin]);
+
   const currentDashboard = useMemo(() => {
     if (!selectedSlug) return undefined;
     return dashboards.find(d => d.slug === selectedSlug);
@@ -163,6 +165,13 @@ function App() {
     <div className={`layout ${currentDashboard ? "dashboard" : "landing"}`}>
       {!currentDashboard && (
         <div className="top-bar">
+          <button
+            onClick={() => {
+              window.location.href = backupUrl;
+            }}
+          >
+            Create backup
+          </button>
           <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
             {appearance === "dark" ? <SunIcon /> : <MoonIcon />}
           </button>
