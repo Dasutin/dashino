@@ -221,7 +221,45 @@ function WidgetCard({
   lastSseAt
 }: WidgetCardProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLElement | null>(null);
   const controllerRef = useRef<WidgetController | null>(null);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const pendingRectRef = useRef<DOMRectReadOnly | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    if (typeof ResizeObserver === "undefined") return;
+
+    const ro = new ResizeObserver(entries => {
+      const entry = entries[entries.length - 1];
+      if (!entry) return;
+      pendingRectRef.current = entry.contentRect;
+      if (rafRef.current !== null) return;
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const rect = pendingRectRef.current;
+        pendingRectRef.current = null;
+        if (rect) {
+          controllerRef.current?.resize?.(rect);
+        }
+      });
+    });
+
+    resizeObserverRef.current = ro;
+    ro.observe(el);
+
+    return () => {
+      ro.disconnect();
+      resizeObserverRef.current = null;
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      pendingRectRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const root = ref.current;
@@ -232,6 +270,12 @@ function WidgetCard({
     controllerRef.current?.destroy?.();
     controllerRef.current = factory({ root, widget, template });
     controllerRef.current?.update?.(payload);
+
+    const el = cardRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      controllerRef.current?.resize?.(rect);
+    }
 
     return () => {
       controllerRef.current?.destroy?.();
@@ -307,6 +351,9 @@ function WidgetCard({
       key={widget.id}
       className={`widget ${widget.type === "nest" ? "nest-container" : ""} ${widget.type === "ev" ? "ev-container" : ""} widget-editable ${isDragging ? "widget-dragging" : ""}`}
       style={articleStyle}
+      ref={node => {
+        cardRef.current = node;
+      }}
       onPointerDownCapture={onPointerDown}
     >
       {overlay}

@@ -3,12 +3,12 @@
   "name": "Demo Dashboard",
   "className": "theme-demo",
   "theme": "demo",
-  "maxRows": 4,
+  "maxRows": 3,
   "maxColumns": 4,
   "widgets": [
     {"id":"clock","type":"clock","title":"Clock","position":{"w":2,"h":1,"x":1,"y":1}},
-    {"id":"message","type":"message","title":"Message","position":{"w":1,"h":1,"x":3,"y":1}},
-    {"id":"metric","type":"metric","title":"Metric","position":{"w":1,"h":1,"x":4,"y":1}},
+    {"id":"feed","type":"feed","title":"Feed","position":{"w":1,"h":2,"x":4,"y":1}},
+    {"id":"metric","type":"metric","title":"Metric","position":{"w":1,"h":1,"x":3,"y":1}},
     {"id":"whispers","type":"whispers","title":"Whispers","position":{"w":1,"h":1,"x":1,"y":2}},
     {"id":"graph","type":"graph","title":"Graph","position":{"w":2,"h":1,"x":2,"y":2}}
   ]

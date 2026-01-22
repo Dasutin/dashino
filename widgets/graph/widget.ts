@@ -12,23 +12,8 @@ type GraphPayload = {
 };
 
 const MAX_POINTS = 30;
-const FALLBACK_WIDTH = 300;
-const FALLBACK_HEIGHT = 180;
-
-function sizeCanvas(canvas: HTMLCanvasElement, host: HTMLElement) {
-  const rect = host.getBoundingClientRect();
-  const w = rect.width > 0 ? rect.width : FALLBACK_WIDTH;
-  const h = rect.height > 0 ? rect.height : FALLBACK_HEIGHT;
-  // Set both canvas buffer size and rendered size to avoid collapse when host is 0px tall.
-  canvas.width = w;
-  canvas.height = h;
-  canvas.style.width = `${w}px`;
-  canvas.style.height = `${h}px`;
-}
 
 function createChart(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, host: HTMLElement) {
-  sizeCanvas(canvas, host);
-
   const data: ChartData<"line"> = {
     labels: [],
     datasets: [
@@ -46,7 +31,7 @@ function createChart(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, h
   };
 
   const options: ChartOptions<"line"> = {
-    responsive: false,
+    responsive: true,
     maintainAspectRatio: false,
     scales: {
       x: {
@@ -73,6 +58,13 @@ function createChart(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, h
     data,
     options
   });
+}
+
+function formatAt(at?: string) {
+  if (!at) return "";
+  const ms = Date.parse(at);
+  if (!Number.isFinite(ms)) return "";
+  return new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
 function pushPoint(chart: Chart<"line">, payload?: GraphPayload) {
@@ -109,12 +101,17 @@ export function createController({ root }: { root: HTMLElement }): WidgetControl
   if (!ctx) return {};
 
   const chart = createChart(canvas, ctx, host as HTMLElement);
+  const metaEl = root.querySelector<HTMLElement>(".meta");
 
   return {
     update(payload?: any) {
-      // Re-size canvas to host before drawing, to avoid collapse on updates.
-      sizeCanvas(canvas, host as HTMLElement);
+      if (metaEl) {
+        metaEl.textContent = formatAt((payload as GraphPayload | undefined)?.at || (payload as any)?.data?.at);
+      }
       pushPoint(chart, payload as GraphPayload);
+    },
+    resize(rect: DOMRectReadOnly) {
+      chart.resize();
     },
     destroy() {
       chart.destroy();

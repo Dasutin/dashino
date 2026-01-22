@@ -14,7 +14,7 @@ dashboards/*
 !dashboards/demo.json
 jobs/*
 !jobs/demo.js
-!jobs/message.js
+!jobs/feed.js
 !jobs/metric.js
 !jobs/graph.js
 themes/*
@@ -22,8 +22,8 @@ themes/*
 widgets/*
 !widgets/clock
 !widgets/clock/**
-!widgets/message
-!widgets/message/**
+!widgets/feed
+!widgets/feed/**
 !widgets/metric
 !widgets/metric/**
 !widgets/graph

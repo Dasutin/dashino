@@ -17,6 +17,7 @@ body.theme-demo {
 
 .theme-demo .widget-body {
   color: #e5e7eb;
+  padding: 12px; /* demo theme: add inner margin */
 }
 
 .theme-demo .clock-widget .time {

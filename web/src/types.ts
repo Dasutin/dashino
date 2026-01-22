@@ -34,6 +34,7 @@ export type WidgetTemplate = {
 
 export type WidgetController = {
   update?: (payload?: StreamPayload) => void;
+  resize?: (rect: DOMRectReadOnly) => void;
   destroy?: () => void;
 };
 
