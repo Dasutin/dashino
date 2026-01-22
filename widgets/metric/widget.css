@@ -31,3 +31,13 @@
   white-space: nowrap;
   opacity: 0.9;
 }
+
+@container (max-width: 260px) {
+  .metric-widget .value {
+    font-size: 26px;
+  }
+
+  .metric-widget .delta {
+    display: none;
+  }
+}

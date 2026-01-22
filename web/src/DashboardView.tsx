@@ -114,9 +114,34 @@ function saveLayout(slug: string, layout: Record<string, LayoutPosition>) {
   }
 }
 
-function sizeFor(widget: WidgetPlacement, defaultSpan?: { w?: number; h?: number }) {
-  const w = widget.position?.w ?? defaultSpan?.w ?? 1;
-  const h = widget.position?.h ?? defaultSpan?.h ?? 1;
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function resolveConstraints(widget: WidgetPlacement) {
+  const pos = widget.position ?? {};
+  return {
+    minW: Math.max(1, pos.minW ?? 1),
+    minH: Math.max(1, pos.minH ?? 1),
+    maxW: pos.maxW,
+    maxH: pos.maxH
+  } as const;
+}
+
+function sizeFor(
+  widget: WidgetPlacement,
+  defaultSpan: { w?: number; h?: number } | undefined,
+  preferred?: Partial<LayoutPosition>,
+  maxColumns: number = DEFAULT_MAX_COLUMNS,
+  maxRows: number = DEFAULT_MAX_ROWS
+) {
+  const constraints = resolveConstraints(widget);
+  const baseW = preferred?.w ?? widget.position?.w ?? defaultSpan?.w ?? 1;
+  const baseH = preferred?.h ?? widget.position?.h ?? defaultSpan?.h ?? 1;
+  const maxW = constraints.maxW ?? maxColumns;
+  const maxH = constraints.maxH ?? maxRows;
+  const w = clamp(baseW, constraints.minW, maxW);
+  const h = clamp(baseH, constraints.minH, maxH);
   return { w, h };
 }
 
@@ -126,10 +151,12 @@ function fitsAt(
   y: number,
   w: number,
   h: number,
-  maxColumns: number
+  maxColumns: number,
+  maxRows: number
 ) {
   if (x < 1 || y < 1) return false;
   if (x + w - 1 > maxColumns) return false;
+  if (y + h - 1 > maxRows) return false;
   for (let dx = 0; dx < w; dx++) {
     for (let dy = 0; dy < h; dy++) {
       if (occupied.has(`${x + dx},${y + dy}`)) return false;
@@ -149,7 +176,7 @@ function mark(occupied: Set<string>, x: number, y: number, w: number, h: number)
 function findSpot(occupied: Set<string>, w: number, h: number, maxColumns: number, maxRows: number): { x: number; y: number } {
   for (let row = 1; row <= maxRows; row++) {
     for (let col = 1; col <= maxColumns; col++) {
-      if (fitsAt(occupied, col, row, w, h, maxColumns)) {
+      if (fitsAt(occupied, col, row, w, h, maxColumns, maxRows)) {
         return { x: col, y: row };
       }
     }
@@ -169,13 +196,14 @@ function materializeLayout(
   const layout: Record<string, LayoutPosition> = {};
 
   for (const widget of widgets) {
-    const { w, h } = sizeFor(widget, defaultSpan);
-    const desired = preferred?.[widget.id] ?? widget.position;
+    const preferredPos = preferred?.[widget.id];
+    const { w, h } = sizeFor(widget, defaultSpan, preferredPos, maxColumns, maxRows);
+    const desired = preferredPos ?? widget.position;
     const desiredX = desired?.x ?? widget.position?.x;
     const desiredY = desired?.y ?? widget.position?.y;
 
     let placed = false;
-    if (desiredX && desiredY && fitsAt(occupied, desiredX, desiredY, w, h, maxColumns)) {
+    if (desiredX && desiredY && fitsAt(occupied, desiredX, desiredY, w, h, maxColumns, maxRows)) {
       layout[widget.id] = { x: desiredX, y: desiredY, w, h };
       mark(occupied, desiredX, desiredY, w, h);
       placed = true;
@@ -200,6 +228,9 @@ type WidgetCardProps = {
   dragStyle?: CSSProperties;
   isDragging?: boolean;
   onPointerDown?: (evt: React.PointerEvent) => void;
+  isResizing?: boolean;
+  editing?: boolean;
+  onResizeStart?: (widget: WidgetPlacement, evt: React.PointerEvent, cardRect: DOMRect | null) => void;
   debugEnabled?: boolean;
   debugInfo?: WidgetDebugInfo;
   sseConnected?: boolean;
@@ -214,7 +245,10 @@ function WidgetCard({
   defaultSpan,
   dragStyle,
   isDragging,
+  isResizing,
+  editing,
   onPointerDown,
+  onResizeStart,
   debugEnabled,
   debugInfo,
   sseConnected,
@@ -242,7 +276,12 @@ function WidgetCard({
         const rect = pendingRectRef.current;
         pendingRectRef.current = null;
         if (rect) {
-          controllerRef.current?.resize?.(rect);
+          const body = ref.current;
+          if (body) {
+            body.style.setProperty("--widget-w", `${rect.width}px`);
+            body.style.setProperty("--widget-h", `${rect.height}px`);
+          }
+          controllerRef.current?.resize?.({ width: rect.width, height: rect.height, dpr: window.devicePixelRatio || 1 });
         }
       });
     });
@@ -274,7 +313,12 @@ function WidgetCard({
     const el = cardRef.current;
     if (el) {
       const rect = el.getBoundingClientRect();
-      controllerRef.current?.resize?.(rect);
+      const body = ref.current;
+      if (body) {
+        body.style.setProperty("--widget-w", `${rect.width}px`);
+        body.style.setProperty("--widget-h", `${rect.height}px`);
+      }
+      controllerRef.current?.resize?.({ width: rect.width, height: rect.height, dpr: window.devicePixelRatio || 1 });
     }
 
     return () => {
@@ -349,7 +393,7 @@ function WidgetCard({
   return (
     <article
       key={widget.id}
-      className={`widget ${widget.type === "nest" ? "nest-container" : ""} ${widget.type === "ev" ? "ev-container" : ""} widget-editable ${isDragging ? "widget-dragging" : ""}`}
+      className={`widget ${widget.type === "nest" ? "nest-container" : ""} ${widget.type === "ev" ? "ev-container" : ""} widget-editable ${isDragging ? "widget-dragging" : ""} ${isResizing ? "widget-resizing" : ""} ${editing ? "widget-editing-enabled" : ""}`}
       style={articleStyle}
       ref={node => {
         cardRef.current = node;
@@ -363,6 +407,12 @@ function WidgetCard({
         style={bodyStyle}
         dangerouslySetInnerHTML={{ __html: html }}
       />
+      {editing ? (
+        <div
+          className="widget-resize-handle"
+          onPointerDown={evt => onResizeStart?.(widget, evt, cardRef.current ? cardRef.current.getBoundingClientRect() : null)}
+        />
+      ) : null}
     </article>
   );
 }
@@ -406,11 +456,24 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
   const [dragTarget, setDragTarget] = useState<{ x: number; y: number } | null>(null);
   const dragTargetRef = useRef<{ x: number; y: number } | null>(null);
   const dragState = useRef<{ id: string; startX: number; startY: number; origin: LayoutPosition } | null>(null);
+  const [resizingId, setResizingId] = useState<string | null>(null);
+  const resizeState = useRef<{
+    id: string;
+    startRect: DOMRect;
+    origin: LayoutPosition;
+    minW: number;
+    minH: number;
+    maxW?: number;
+    maxH?: number;
+    pointerId: number;
+  } | null>(null);
+  const resizeRaf = useRef<number | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const columnWidth = dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH;
   const rowHeight = dashboard.rowHeight ?? DEFAULT_ROW_HEIGHT;
   const gutter = dashboard.gutter ?? DEFAULT_GUTTER;
-  const overlayVisible = Boolean(draggingId);
+  const overlayVisible = Boolean(draggingId || resizingId);
+  const editingEnabled = true;
 
   const widgetIds = useMemo(() => new Set(dashboard.widgets.map(w => w.id)), [dashboard.widgets]);
 
@@ -487,6 +550,65 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
     [columnWidth, gutter, rowHeight, maxColumns, maxRows]
   );
 
+  const handleResizePointerMove = useCallback(
+    (event: PointerEvent) => {
+      const state = resizeState.current;
+      if (!state) return;
+      if (resizeRaf.current !== null) return;
+
+      const clientX = event.clientX;
+      const clientY = event.clientY;
+
+      resizeRaf.current = requestAnimationFrame(() => {
+        resizeRaf.current = null;
+        const active = resizeState.current;
+        if (!active) return;
+
+        const desiredWidthPx = clientX - active.startRect.left;
+        const desiredHeightPx = clientY - active.startRect.top;
+
+        const pitchX = columnWidth + gutter;
+        const pitchY = rowHeight + gutter;
+
+        let nextW = Math.round((desiredWidthPx + gutter) / pitchX);
+        let nextH = Math.round((desiredHeightPx + gutter) / pitchY);
+
+        const maxWGrid = maxColumns - active.origin.x + 1;
+        const maxHGrid = maxRows - active.origin.y + 1;
+        const capW = active.maxW !== undefined ? Math.min(active.maxW, maxWGrid) : maxWGrid;
+        const capH = active.maxH !== undefined ? Math.min(active.maxH, maxHGrid) : maxHGrid;
+
+        nextW = clamp(nextW, active.minW, Math.max(1, capW));
+        nextH = clamp(nextH, active.minH, Math.max(1, capH));
+
+        setLayout(prev => {
+          const current = prev[active.id];
+          if (current && current.w === nextW && current.h === nextH) return prev;
+
+          const preferred: Record<string, Partial<LayoutPosition>> = {};
+          dashboard.widgets.forEach(w => {
+            const existing = prev[w.id];
+            if (existing) preferred[w.id] = { ...existing };
+          });
+
+          preferred[active.id] = {
+            ...(preferred[active.id] ?? {}),
+            x: active.origin.x,
+            y: active.origin.y,
+            w: nextW,
+            h: nextH
+          };
+
+          const next = materializeLayout(dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, preferred, maxRows);
+          const base = baseLayoutRef.current ?? {};
+          setPendingLayoutChange(!layoutsEqual(next, base));
+          return next;
+        });
+      });
+    },
+    [columnWidth, dashboard.defaultWidgetSpan, dashboard.widgets, gutter, maxColumns, maxRows]
+  );
+
   const finishDrag = useCallback(() => {
     if (!dragState.current) return;
     const currentId = dragState.current.id;
@@ -518,9 +640,25 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
     });
   }, [dashboard.defaultWidgetSpan, dashboard.widgets, handlePointerMove, maxColumns, maxRows]);
 
+  const finishResize = useCallback(() => {
+    if (!resizeState.current) return;
+    window.removeEventListener("pointermove", handleResizePointerMove, true);
+    window.removeEventListener("pointerup", finishResize, true);
+    window.removeEventListener("pointercancel", finishResize, true);
+    if (resizeRaf.current !== null) {
+      cancelAnimationFrame(resizeRaf.current);
+      resizeRaf.current = null;
+    }
+    resizeState.current = null;
+    setResizingId(null);
+  }, [handleResizePointerMove]);
+
   const handlePointerDown = useCallback(
     (widgetId: string) => (event: React.PointerEvent) => {
       if (event.button !== 0) return;
+      const target = event.target as HTMLElement | null;
+      if (target && target.closest(".widget-resize-handle")) return;
+      if (resizingId) return;
       event.preventDefault();
       const origin = layout[widgetId] ?? materializeLayout(dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, undefined, maxRows)[widgetId];
       if (!origin) return;
@@ -539,7 +677,46 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
       window.addEventListener("pointerup", finishDrag, true);
       window.addEventListener("pointercancel", finishDrag, true);
     },
-    [dashboard.defaultWidgetSpan, dashboard.widgets, finishDrag, handlePointerMove, layout, maxColumns, maxRows]
+    [dashboard.defaultWidgetSpan, dashboard.widgets, finishDrag, handlePointerMove, layout, maxColumns, maxRows, resizingId]
+  );
+
+  const handleResizeStart = useCallback(
+    (widget: WidgetPlacement, event: React.PointerEvent, cardRect: DOMRect | null) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (resizingId) return;
+
+      const origin = layout[widget.id] ?? materializeLayout(dashboard.widgets, maxColumns, dashboard.defaultWidgetSpan, undefined, maxRows)[widget.id];
+      if (!origin) return;
+
+      const rect =
+        cardRect ??
+        ((event.currentTarget as HTMLElement).closest("article")?.getBoundingClientRect() ??
+          (event.currentTarget as HTMLElement).getBoundingClientRect());
+      const pos = widget.position ?? {};
+
+      if ((event.currentTarget as HTMLElement)?.setPointerCapture) {
+        (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+      }
+
+      resizeState.current = {
+        id: widget.id,
+        startRect: rect,
+        origin,
+        minW: Math.max(1, pos.minW ?? 1),
+        minH: Math.max(1, pos.minH ?? 1),
+        maxW: pos.maxW,
+        maxH: pos.maxH,
+        pointerId: event.pointerId
+      };
+      setResizingId(widget.id);
+
+      window.addEventListener("pointermove", handleResizePointerMove, true);
+      window.addEventListener("pointerup", finishResize, true);
+      window.addEventListener("pointercancel", finishResize, true);
+    },
+    [dashboard.defaultWidgetSpan, dashboard.widgets, finishResize, handleResizePointerMove, layout, maxColumns, maxRows, resizingId]
   );
 
   useEffect(
@@ -547,8 +724,11 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
       window.removeEventListener("pointermove", handlePointerMove, true);
       window.removeEventListener("pointerup", finishDrag, true);
       window.removeEventListener("pointercancel", finishDrag, true);
+      window.removeEventListener("pointermove", handleResizePointerMove, true);
+      window.removeEventListener("pointerup", finishResize, true);
+      window.removeEventListener("pointercancel", finishResize, true);
     },
-    [handlePointerMove, finishDrag]
+    [finishDrag, finishResize, handlePointerMove, handleResizePointerMove]
   );
 
   const handleSaveTemporary = useCallback(() => {
@@ -591,6 +771,12 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
     setDraggingId(null);
     setDragOffset({ x: 0, y: 0 });
     setDragTarget(null);
+    setResizingId(null);
+    resizeState.current = null;
+    if (resizeRaf.current !== null) {
+      cancelAnimationFrame(resizeRaf.current);
+      resizeRaf.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -788,6 +974,18 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
     };
   }, [dashboard.className]);
 
+  const dragHighlight = draggingId && dragTargetRef.current && dragState.current
+    ? {
+        x: dragTargetRef.current.x,
+        y: dragTargetRef.current.y,
+        w: dragState.current.origin.w,
+        h: dragState.current.origin.h
+      }
+    : null;
+
+  const resizeHighlight = resizingId && layout[resizingId] ? layout[resizingId] : null;
+  const overlayHighlight = dragHighlight ?? resizeHighlight;
+
   return (
     <div className="grid-shell">
       {pendingLayoutChange ? (
@@ -827,14 +1025,14 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
               height: `${maxRows * (dashboard.rowHeight ?? DEFAULT_ROW_HEIGHT) + (maxRows - 1) * (dashboard.gutter ?? DEFAULT_GUTTER)}px`
             }}
           >
-            {draggingId && dragTargetRef.current && dragState.current ? (
+            {overlayHighlight ? (
               <div
                 className="grid-highlight"
                 style={{
-                  gridColumnStart: dragTargetRef.current.x,
-                  gridColumnEnd: `span ${dragState.current.origin.w}`,
-                  gridRowStart: dragTargetRef.current.y,
-                  gridRowEnd: `span ${dragState.current.origin.h}`
+                  gridColumnStart: overlayHighlight.x,
+                  gridColumnEnd: `span ${overlayHighlight.w}`,
+                  gridRowStart: overlayHighlight.y,
+                  gridRowEnd: `span ${overlayHighlight.h}`
                 }}
               />
             ) : null}
@@ -859,8 +1057,11 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
               payload={payload}
               defaultSpan={dashboard.defaultWidgetSpan}
               isDragging={isDragging}
+              isResizing={resizingId === widget.id}
               dragStyle={dragStyle}
               onPointerDown={handlePointerDown(widget.id)}
+              onResizeStart={handleResizeStart}
+              editing={editingEnabled}
               debugEnabled={debugEnabled}
               debugInfo={debugInfo[widget.id]}
               sseConnected={connected}

@@ -110,7 +110,7 @@ export function createController({ root }: { root: HTMLElement }): WidgetControl
       }
       pushPoint(chart, payload as GraphPayload);
     },
-    resize(rect: DOMRectReadOnly) {
+    resize() {
       chart.resize();
     },
     destroy() {

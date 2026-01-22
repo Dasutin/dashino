@@ -50,7 +50,7 @@ export function createController({ root }: { root: HTMLElement }): WidgetControl
 	let maxVisible = FALLBACK_CAPACITY;
 	let itemHeight = FALLBACK_ITEM_HEIGHT;
 
-	function applyCapacity(rect?: DOMRectReadOnly) {
+	function applyCapacity(rect?: { height: number }) {
 		if (!rect) return;
 		const headerHeight = headerEl?.offsetHeight ?? 0;
 		const available = rect.height - headerHeight - 8; // account for gap
@@ -107,7 +107,7 @@ export function createController({ root }: { root: HTMLElement }): WidgetControl
 
 			render();
 		},
-		resize(rect: DOMRectReadOnly) {
+		resize(rect?: { height: number }) {
 			applyCapacity(rect);
 			render();
 		},

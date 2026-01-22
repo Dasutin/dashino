@@ -9,7 +9,17 @@ export type WidgetPlacement = {
   id: string;
   type: string;
   title?: string;
-  position?: { w?: number; h?: number; x?: number; y?: number };
+  position?: {
+    w?: number;
+    h?: number;
+    x?: number;
+    y?: number;
+    minW?: number;
+    minH?: number;
+    maxW?: number;
+    maxH?: number;
+    aspectRatio?: number;
+  };
 };
 
 export type Dashboard = {
@@ -34,7 +44,7 @@ export type WidgetTemplate = {
 
 export type WidgetController = {
   update?: (payload?: StreamPayload) => void;
-  resize?: (rect: DOMRectReadOnly) => void;
+  resize?: (size: { width: number; height: number; dpr: number }) => void;
   destroy?: () => void;
 };
 
