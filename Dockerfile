@@ -16,6 +16,7 @@ RUN npm run build
 # Dev runtime (full deps, uses start-dev.sh to honor REBUILD_ON_START then run npm run dev)
 FROM base AS runner-dev
 ENV NODE_ENV=development
+
 COPY package*.json ./
 COPY tsconfig.json vite.config.ts ./
 COPY --from=deps /app/node_modules ./node_modules
@@ -34,23 +35,36 @@ COPY --from=build /app/vite.config.ts ./vite.config.ts
 COPY --from=build /app/start.sh ./start.sh
 COPY --from=build /app/start-dev.sh ./start-dev.sh
 
+# ---- NEW: bake defaults into a non-volume path ----
+COPY --from=build /app/dashboards /defaults/dashboards
+COPY --from=build /app/widgets    /defaults/widgets
+COPY --from=build /app/themes     /defaults/themes
+COPY --from=build /app/assets     /defaults/assets
+COPY --from=build /app/jobs       /defaults/jobs
+
+# ---- NEW: entrypoint that seeds volumes on first run ----
+COPY docker/entrypoint.sh /entrypoint.sh
+
 RUN mkdir -p dashboards widgets themes assets jobs logs scripts \
 	&& chown -R node:node /app \
 	&& chown -R node:node dashboards widgets themes assets jobs logs dist scripts web src \
 	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json /app/start.sh /app/start-dev.sh \
 	&& touch .env && chown node:node .env \
-	&& chmod +x ./start.sh ./start-dev.sh
+	&& chmod +x ./start.sh ./start-dev.sh /entrypoint.sh
 
-USER node
+# IMPORTANT: run entrypoint as root so it can chown fresh volumes, then drop to node internally
+USER root
 
 VOLUME ["/app/assets","/app/dashboards","/app/jobs","/app/themes","/app/widgets"]
 
 EXPOSE 4040 4173
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["sh", "./start-dev.sh"]
 
 # Prod runtime (default final stage; keeps current config with rebuild-on-start)
 FROM base AS runner-prod
 ENV NODE_ENV=production
+
 COPY package*.json ./
 COPY tsconfig.json vite.config.ts ./
 COPY --from=deps /app/node_modules ./node_modules
@@ -68,6 +82,16 @@ COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/vite.config.ts ./vite.config.ts
 COPY --from=build /app/start.sh ./start.sh
 
+# ---- NEW: bake defaults into a non-volume path ----
+COPY --from=build /app/dashboards /defaults/dashboards
+COPY --from=build /app/widgets    /defaults/widgets
+COPY --from=build /app/themes     /defaults/themes
+COPY --from=build /app/assets     /defaults/assets
+COPY --from=build /app/jobs       /defaults/jobs
+
+# ---- NEW: entrypoint that seeds volumes on first run ----
+COPY docker/entrypoint.sh /entrypoint.sh
+
 # Make runtime content writable; users can bind mount these to override.
 RUN mkdir -p dashboards widgets themes assets jobs logs \
 	&& mkdir -p scripts \
@@ -75,11 +99,14 @@ RUN mkdir -p dashboards widgets themes assets jobs logs \
 	&& chown -R node:node dashboards widgets themes assets jobs logs dist scripts web src \
 	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json /app/start.sh \
 	&& touch .env && chown node:node .env \
-	&& chmod +x ./start.sh
+	&& chmod +x ./start.sh /entrypoint.sh
 
-USER node
+# IMPORTANT: run entrypoint as root so it can chown fresh volumes, then drop to node internally
+USER root
 
 VOLUME ["/app/assets","/app/dashboards","/app/jobs","/app/themes","/app/widgets"]
 
 EXPOSE 4040
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["sh", "./start.sh"]
+

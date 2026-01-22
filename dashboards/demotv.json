@@ -29,7 +29,7 @@
     {"id":"agenda","type":"agenda","title":"Up Next","position":{"x":5,"y":1,"w":1,"h":2}},
     {"id":"countdown","type":"countdown","title":"Countdown","position":{"x":4,"y":5,"w":1,"h":1}},
     {"id":"toggle","type":"toggle","title":"Feature Flag","position":{"x":4,"y":3,"w":1,"h":1}},
-    {"id":"actions","type":"actions","title":"Quick Actions","position":{"x":5,"y":5,"w":1,"h":1}},
+    {"id":"actions","type":"actions","title":"Quick Actions","position":{"x":5,"y":5,"w":1,"h":2}},
     {"id":"inspect","type":"inspect","title":"Last Payload","position":{"x":3,"y":5,"w":1,"h":2}},
     {"id":"image","type":"image","title":"Snapshot","position":{"x":1,"y":5,"w":2,"h":2}},
     {"id":"text","type":"text","title":"Announcements","position":{"x":3,"y":4,"w":2,"h":1}},
