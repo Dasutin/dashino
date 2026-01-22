@@ -1,0 +1,17 @@
+.text-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.text-title {
+  font-weight: 700;
+}
+
+.text-body {
+  font-size: 14px;
+  line-height: 1.5;
+  opacity: 0.9;
+  white-space: pre-wrap;
+}

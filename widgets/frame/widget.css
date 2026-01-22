@@ -1,0 +1,23 @@
+.frame-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.frame-title {
+  font-weight: 700;
+}
+
+.frame-body {
+  flex: 1;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.frame-embed {
+  width: 100%;
+  height: 100%;
+  border: none;
+}

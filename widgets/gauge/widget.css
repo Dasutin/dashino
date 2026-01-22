@@ -1,0 +1,58 @@
+.gauge-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+}
+
+.gauge-widget .gauge-header {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.gauge-widget .gauge-body {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-items: center;
+  justify-items: center;
+  gap: 6px;
+}
+
+.gauge-widget .gauge-svg {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+}
+
+.gauge-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.gauge-fill {
+  fill: none;
+  stroke: #38bdf8;
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 157;
+  stroke-dashoffset: 157;
+  transition: stroke-dashoffset 200ms ease, stroke 200ms ease;
+}
+
+.gauge-dot {
+  fill: #38bdf8;
+  transition: transform 200ms ease, fill 200ms ease;
+}
+
+.gauge-value {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.gauge-label {
+  font-size: 12px;
+  opacity: 0.85;
+}

@@ -1,0 +1,52 @@
+.image-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.image-title {
+  font-weight: 700;
+}
+
+.image-frame {
+  position: relative;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-tag {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.image-frame.cover .image-tag {
+  object-fit: cover;
+}
+
+.image-frame.contain .image-tag {
+  object-fit: contain;
+}
+
+.image-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.image-caption {
+  font-size: 12px;
+  opacity: 0.85;
+}

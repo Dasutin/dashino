@@ -1,0 +1,39 @@
+.agenda-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.agenda-title {
+  font-weight: 700;
+}
+
+.agenda-item-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.agenda-item-time {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.agenda-item-location {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.agenda-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.agenda-list .agenda-item {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
