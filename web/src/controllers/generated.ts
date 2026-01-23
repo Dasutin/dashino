@@ -19,6 +19,7 @@ import * as log from './log';
 import * as metric from './metric';
 import * as nest from './nest';
 import * as progress from './progress';
+import * as rss from './rss';
 import * as spark from './spark';
 import * as status from './status';
 import * as stocks from './stocks';
@@ -56,6 +57,7 @@ const controllers: Record<string, WidgetFactory> = {
   'metric': resolveFactory(metric),
   'nest': resolveFactory(nest),
   'progress': resolveFactory(progress),
+  'rss': resolveFactory(rss),
   'spark': resolveFactory(spark),
   'status': resolveFactory(status),
   'stocks': resolveFactory(stocks),

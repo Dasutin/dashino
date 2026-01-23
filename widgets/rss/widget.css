@@ -1,0 +1,91 @@
+.rss {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  color: #f4f6fb;
+}
+
+.rss-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.rss-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rss-updated {
+  font-size: 14px;
+  color: rgba(244, 246, 251, 0.7);
+  white-space: nowrap;
+}
+
+.rss-error {
+  display: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 82, 82, 0.15);
+  color: #ffbdbd;
+  font-size: 13px;
+}
+
+.rss-error.visible {
+  display: block;
+}
+
+.rss-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.rss-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.rss-headline {
+  grid-column: 1 / 3;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.rss-meta {
+  grid-column: 1 / 2;
+  font-size: 13px;
+  color: rgba(244, 246, 251, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rss-open {
+  grid-column: 2 / 3;
+  justify-self: end;
+  align-self: center;
+  font-size: 13px;
+  color: #9ad5ff;
+  text-decoration: none;
+}
+
+.rss-open:hover {
+  text-decoration: underline;
+}

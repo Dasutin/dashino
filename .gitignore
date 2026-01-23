@@ -54,6 +54,7 @@ jobs/*
 !jobs/demo-metric.js
 !jobs/demo-clock.js
 !jobs/demo-feed.js
+!jobs/rss.js
 themes/*
 !themes/demo.css
 widgets/*
@@ -65,6 +66,8 @@ widgets/*
 !widgets/metric/**
 !widgets/graph
 !widgets/graph/**
+!widgets/rss
+!widgets/rss/**
 !widgets/wispers
 !widgets/wispers/**
 !widgets/status
