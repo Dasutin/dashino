@@ -1,0 +1,10 @@
+{
+  "slug": "test",
+  "name": "Test",
+  "rotationSeconds": 10,
+  "dashboards": [
+    "demo",
+    "demotv",
+    "main"
+  ]
+}

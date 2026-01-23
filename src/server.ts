@@ -115,9 +115,17 @@ type WidgetPlacement = {
 type Dashboard = {
   slug: string;
   name: string;
+  description?: string;
   maxColumns: number;
   gutter?: number;
   widgets: WidgetPlacement[];
+};
+
+type Playlist = {
+  slug: string;
+  name: string;
+  rotationSeconds: number;
+  dashboards: string[];
 };
 
 app.use(cors());
@@ -143,6 +151,11 @@ const widgetsDir = path.join(projectRoot, 'widgets');
 const jobsDir = path.join(projectRoot, 'jobs');
 const themesDir = path.join(projectRoot, 'themes');
 const assetsDir = path.join(projectRoot, 'assets');
+const playlistsDir = path.join(projectRoot, 'playlists');
+
+if (!fs.existsSync(playlistsDir)) {
+  fs.mkdirSync(playlistsDir, { recursive: true });
+}
 // Serve built client assets (dist/web) when running the compiled server.
 // __dirname resolves to dist/server at runtime, so the client build sits at ../web
 // (avoid double "dist/dist" when resolving the path).
@@ -160,6 +173,9 @@ app.use('/assets', express.static(assetsDir, noStore));
 
 let dashboardsCache: Dashboard[] = [];
 let dashboardsDirty = true;
+
+let playlistsCache: Playlist[] = [];
+let playlistsDirty = true;
 
 function watchDirRecursive(dir: string, onChange: () => void) {
   if (!fs.existsSync(dir)) return;
@@ -192,6 +208,34 @@ async function loadDashboards(): Promise<Dashboard[]> {
   dashboardsCache = loaded;
   dashboardsDirty = false;
   return dashboardsCache;
+}
+
+async function loadPlaylists(): Promise<Playlist[]> {
+  if (!playlistsDirty && !cacheDisabled) return playlistsCache;
+  if (!fs.existsSync(playlistsDir)) {
+    log('warn', 'playlists dir missing', { dir: playlistsDir });
+    playlistsCache = [];
+    playlistsDirty = false;
+    return playlistsCache;
+  }
+
+  const files = (await fsPromises.readdir(playlistsDir)).filter(f => f.endsWith('.json'));
+  const loaded: Playlist[] = [];
+  for (const file of files) {
+    try {
+      const raw = await fsPromises.readFile(path.join(playlistsDir, file), 'utf-8');
+      const json = JSON.parse(raw) as Playlist;
+      if (!json.slug || !json.name || !Array.isArray(json.dashboards)) {
+        throw new Error('invalid playlist');
+      }
+      loaded.push(json);
+    } catch (err) {
+      log('warn', 'failed to load playlist', { file, error: `${err}` });
+    }
+  }
+  playlistsCache = loaded;
+  playlistsDirty = false;
+  return playlistsCache;
 }
 
 type CachedFile = { content: string; mtimeMs: number };
@@ -253,6 +297,15 @@ type WebhookTarget = {
   widgetId?: string;
   type?: string;
 };
+
+function isValidSlug(slug: string) {
+  return /^[a-z0-9-]+$/.test(slug);
+}
+
+function prettyWriteJson(filePath: string, data: unknown) {
+  const content = `${JSON.stringify(data, null, 2)}\n`;
+  return fsPromises.writeFile(filePath, content, 'utf-8');
+}
 
 const webhookTargets = buildWebhookTargets();
 const webhookSecretHeader = 'x-webhook-secret';
@@ -393,6 +446,87 @@ app.post('/api/dashboards/:slug/layout', async (req: Request, res: Response) => 
   } catch (err) {
     log('error', 'failed to save layout', { slug, error: `${err}` });
     res.status(500).json({ error: 'failed to save layout' });
+  }
+});
+
+app.get('/api/playlists', async (_req: Request, res: Response) => {
+  const playlists = await loadPlaylists();
+  res.json({ playlists });
+});
+
+app.get('/api/playlists/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  const playlists = await loadPlaylists();
+  const found = playlists.find(p => p.slug === slug);
+  if (!found) {
+    res.status(404).json({ error: 'playlist not found' });
+    return;
+  }
+  res.json({ playlist: found });
+});
+
+app.post('/api/playlists/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  if (!slug || !isValidSlug(slug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const rotationSeconds = Number(req.body?.rotationSeconds);
+  const dashboards = Array.isArray(req.body?.dashboards)
+    ? (req.body.dashboards as unknown[]).filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean)
+    : [];
+
+  if (!name) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+
+  if (!Number.isFinite(rotationSeconds) || rotationSeconds <= 0) {
+    res.status(400).json({ error: 'rotationSeconds must be > 0' });
+    return;
+  }
+
+  const dashboardsList = await loadDashboards();
+  const dashboardSlugs = new Set(dashboardsList.map(d => d.slug));
+  if (dashboardSlugs.has(slug)) {
+    res.status(400).json({ error: 'playlist slug conflicts with dashboard' });
+    return;
+  }
+
+  const playlist: Playlist = {
+    slug,
+    name,
+    rotationSeconds,
+    dashboards
+  };
+
+  try {
+    await prettyWriteJson(path.join(playlistsDir, `${slug}.json`), playlist);
+    playlistsDirty = true;
+    res.json({ ok: true, playlist });
+  } catch (err) {
+    log('error', 'failed to save playlist', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to save playlist' });
+  }
+});
+
+app.delete('/api/playlists/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  const file = path.join(playlistsDir, `${slug}.json`);
+  if (!fs.existsSync(file)) {
+    res.status(404).json({ error: 'playlist not found' });
+    return;
+  }
+
+  try {
+    await fsPromises.unlink(file);
+    playlistsDirty = true;
+    res.json({ ok: true });
+  } catch (err) {
+    log('error', 'failed to delete playlist', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to delete playlist' });
   }
 });
 
@@ -541,7 +675,8 @@ app.get('/api/backup.zip', async (_req: Request, res: Response) => {
     { name: 'dashboards', dir: dashboardsDir },
     { name: 'themes', dir: themesDir },
     { name: 'widgets', dir: widgetsDir },
-    { name: 'jobs', dir: jobsDir }
+    { name: 'jobs', dir: jobsDir },
+    { name: 'playlists', dir: playlistsDir }
   ];
 
   const handleError = (err: unknown) => {
@@ -726,4 +861,9 @@ watchDirRecursive(widgetsDir, () => {
 
 watchDirRecursive(themesDir, () => {
   themesDirty = true;
+});
+
+watchDirRecursive(playlistsDir, () => {
+  playlistsDirty = true;
+  log('info', 'playlists changed; cache invalidated');
 });

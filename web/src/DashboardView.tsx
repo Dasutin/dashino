@@ -421,9 +421,10 @@ type DashboardViewProps = {
   dashboard: Dashboard;
   apiOrigin: string;
   onConnectionChange?: (connected: boolean) => void;
+  sseEnabled?: boolean;
 };
 
-function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardViewProps) {
+function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = true }: DashboardViewProps) {
   const [templates, setTemplates] = useState<Record<string, WidgetTemplate>>({});
   const [widgetData, setWidgetData] = useState<Record<string, StreamPayload>>({});
   const stylesInjected = useRef<Set<string>>(new Set());
@@ -784,6 +785,12 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
   }, [connected, onConnectionChange]);
 
   useEffect(() => {
+    if (!sseEnabled) {
+      setConnected(false);
+      onConnectionChange?.(false);
+      return;
+    }
+
     const es = new EventSource(`${apiOrigin}/events`);
 
     es.onopen = () => setConnected(true);
@@ -874,7 +881,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange }: DashboardVi
       onConnectionChange?.(false);
       es.close();
     };
-  }, [apiOrigin, onConnectionChange, widgetIds]);
+  }, [apiOrigin, onConnectionChange, sseEnabled, widgetIds]);
 
   useEffect(() => {
     let cancelled = false;

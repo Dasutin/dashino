@@ -1,6 +1,7 @@
 {
   "slug": "demo",
   "name": "Demo Dashboard",
+  "description": "Simple demo layout showcasing core widgets.",
   "className": "theme-demo",
   "theme": "demo",
   "maxRows": 3,

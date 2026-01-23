@@ -1,6 +1,7 @@
 {
   "slug": "demotv",
   "name": "Demo TV",
+  "description": "Wide-screen demo for TV or wallboard layouts.",
   "className": "theme-demo",
   "theme": "demo",
   "maxColumns": 7,

@@ -25,6 +25,7 @@ export type WidgetPlacement = {
 export type Dashboard = {
   slug: string;
   name: string;
+  description?: string;
   className?: string;
   theme?: string;
   maxColumns: number;
@@ -34,6 +35,13 @@ export type Dashboard = {
   maxRows?: number;
   defaultWidgetSpan?: { w?: number; h?: number };
   widgets: WidgetPlacement[];
+};
+
+export type Playlist = {
+  slug: string;
+  name: string;
+  rotationSeconds: number;
+  dashboards: string[];
 };
 
 export type WidgetTemplate = {
