@@ -545,13 +545,6 @@ function App() {
               </button>
             </div>
           </header>
-
-          <section className="panel">
-            <div className="panel-header">
-              <h3>How it works</h3>
-            </div>
-            <p className="muted">Backups include dashboards, playlists, widgets, themes, jobs, and assets. The download starts immediately.</p>
-          </section>
         </main>
       </div>
     );
