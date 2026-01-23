@@ -79,9 +79,13 @@
   overflow: hidden;
   color: var(--text-color, inherit);
   transition: transform 80ms ease, box-shadow 80ms ease, outline-color 80ms ease;
-  cursor: grab;
+  cursor: default;
   height: 100%;
   position: relative;
+}
+
+.dashboard .grid.grid-editing-enabled .widget {
+  cursor: grab;
 }
 
 .dashboard .widget-body {

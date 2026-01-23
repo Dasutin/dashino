@@ -475,7 +475,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
   const gutter = dashboard.gutter ?? DEFAULT_GUTTER;
   const overlayVisible = Boolean(draggingId || resizingId);
   const editingEnabled = true;
-  const [resizeHandlesVisible, setResizeHandlesVisible] = useState(true);
+  const [resizeHandlesVisible, setResizeHandlesVisible] = useState(false);
 
   const widgetIds = useMemo(() => new Set(dashboard.widgets.map(w => w.id)), [dashboard.widgets]);
   const editingActive = editingEnabled && resizeHandlesVisible;
@@ -1024,7 +1024,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
         ref={node => {
           gridRef.current = node;
         }}
-        className={`grid ${overlayVisible ? "grid-editing" : ""}`}
+        className={`grid ${overlayVisible ? "grid-editing" : ""} ${editingActive ? "grid-editing-enabled" : ""}`}
         style={{
           gridTemplateColumns: `repeat(${maxColumns}, ${dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH}px)`,
           gridAutoRows: `${dashboard.rowHeight ?? DEFAULT_ROW_HEIGHT}px`,
