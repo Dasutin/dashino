@@ -475,8 +475,10 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
   const gutter = dashboard.gutter ?? DEFAULT_GUTTER;
   const overlayVisible = Boolean(draggingId || resizingId);
   const editingEnabled = true;
+  const [resizeHandlesVisible, setResizeHandlesVisible] = useState(true);
 
   const widgetIds = useMemo(() => new Set(dashboard.widgets.map(w => w.id)), [dashboard.widgets]);
+  const editingActive = editingEnabled && resizeHandlesVisible;
 
   useEffect(() => {
     setWidgetData({});
@@ -502,6 +504,16 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [toggleDebug]);
+
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== "e" && event.key !== "E") return;
+      if (isInputLike(event.target)) return;
+      setResizeHandlesVisible(prev => !prev);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   useEffect(() => {
     setDebugInfo(prev => {
@@ -1066,9 +1078,9 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
               isDragging={isDragging}
               isResizing={resizingId === widget.id}
               dragStyle={dragStyle}
-              onPointerDown={handlePointerDown(widget.id)}
+              onPointerDown={editingActive ? handlePointerDown(widget.id) : undefined}
               onResizeStart={handleResizeStart}
-              editing={editingEnabled}
+              editing={editingActive}
               debugEnabled={debugEnabled}
               debugInfo={debugInfo[widget.id]}
               sseConnected={connected}
