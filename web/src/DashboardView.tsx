@@ -301,6 +301,9 @@ function WidgetCard({
   }, []);
 
   useEffect(() => {
+    // Do not instantiate until the template is available so we don't replace the embed container mid-flight.
+    if (!template) return;
+
     const root = ref.current;
     if (!root) return;
     const factory = widgetFactories[widget.type];

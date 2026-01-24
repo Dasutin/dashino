@@ -210,6 +210,7 @@
   transform: none !important;
   transition: none !important;
   will-change: auto !important;
+  overflow: visible !important;
 }
 
 .dashboard .widget.widget-no-clip .widget-body {
