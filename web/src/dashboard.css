@@ -204,23 +204,31 @@
   margin-top: 16px;
   color: var(--muted-color, #6b7280);
 }
-
-/* Twitch (and some embeds) fail autoplay if any ancestor clips/contains them */
+/* 
+/* Twitch (and some embeds) fail autoplay if any ancestor clips/contains them
 .widget.widget-no-clip {
   transform: none !important;
   transition: none !important;
   will-change: auto !important;
   overflow: visible !important;
-}
+  border-radius: 0 !important;
+  isolation: isolate;
+/* Bump this up if streaming autoplay has issues
+  z-index: 1;
+} */
 
-.dashboard .widget.widget-no-clip .widget-body {
+/* .dashboard .widget.widget-no-clip .widget-body {
   overflow: visible !important;
+  padding: 0 !important;
 }
-
-.dashboard .widget.widget-no-clip .video-embed,
+ */
+/* .dashboard .widget.widget-no-clip .video-embed,
 .dashboard .widget.widget-no-clip iframe,
 .dashboard .widget.widget-no-clip object {
   overflow: visible !important;
   clip-path: none !important;
   filter: none !important;
-}
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+} */
