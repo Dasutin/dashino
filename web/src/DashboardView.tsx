@@ -358,9 +358,13 @@ function WidgetCard({
     ? { ...style, background: "transparent", boxShadow: "none", border: "none" }
     : style;
 
-  if (dragStyle) {
-    Object.assign(articleStyle, dragStyle);
-  }
+  // if (dragStyle) {
+  //   Object.assign(articleStyle, dragStyle);
+  // }
+
+if (dragStyle && !isNoClipWidget) {
+  Object.assign(articleStyle, dragStyle);
+}
 
   const bodyStyle: CSSProperties | undefined = isGradientWidget
     ? { background: "transparent", padding: 0 }

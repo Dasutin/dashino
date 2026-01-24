@@ -76,7 +76,7 @@
 .dashboard .widget {
   background: var(--panel-bg, transparent);
   border-radius: 20px;
-  overflow: visible;
+  overflow: hidden;
   color: var(--text-color, inherit);
   transition: transform 80ms ease, box-shadow 80ms ease, outline-color 80ms ease;
   cursor: default;
@@ -206,8 +206,10 @@
 }
 
 /* Twitch (and some embeds) fail autoplay if any ancestor clips/contains them */
-.dashboard .widget.widget-no-clip {
-  overflow: visible !important;
+.widget.widget-no-clip {
+  transform: none !important;
+  transition: none !important;
+  will-change: auto !important;
 }
 
 .dashboard .widget.widget-no-clip .widget-body {
