@@ -204,3 +204,20 @@
   margin-top: 16px;
   color: var(--muted-color, #6b7280);
 }
+
+/* Twitch (and some embeds) fail autoplay if any ancestor clips/contains them */
+.dashboard .widget.widget-no-clip {
+  overflow: visible !important;
+}
+
+.dashboard .widget.widget-no-clip .widget-body {
+  overflow: visible !important;
+}
+
+.dashboard .widget.widget-no-clip .video-embed,
+.dashboard .widget.widget-no-clip iframe,
+.dashboard .widget.widget-no-clip object {
+  overflow: visible !important;
+  clip-path: none !important;
+  filter: none !important;
+}
