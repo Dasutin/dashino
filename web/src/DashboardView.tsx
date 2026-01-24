@@ -352,6 +352,8 @@ function WidgetCard({
     : '<div class="placeholder">Loading widget...</div>';
 
   const isGradientWidget = widget.type === "nest" || widget.type === "ev";
+  const isNoClipWidget = widget.type === "twitchstream";
+
   const articleStyle: CSSProperties = isGradientWidget
     ? { ...style, background: "transparent", boxShadow: "none", border: "none" }
     : style;
@@ -393,7 +395,7 @@ function WidgetCard({
   return (
     <article
       key={widget.id}
-      className={`widget ${widget.type === "nest" ? "nest-container" : ""} ${widget.type === "ev" ? "ev-container" : ""} widget-editable ${isDragging ? "widget-dragging" : ""} ${isResizing ? "widget-resizing" : ""} ${editing ? "widget-editing-enabled" : ""}`}
+      className={`widget ${isNoClipWidget ? "widget-no-clip" : ""} ${widget.type === "nest" ? "nest-container" : ""} ${widget.type === "ev" ? "ev-container" : ""} widget-editable ${isDragging ? "widget-dragging" : ""} ${isResizing ? "widget-resizing" : ""} ${editing ? "widget-editing-enabled" : ""}`}
       style={articleStyle}
       ref={node => {
         cardRef.current = node;
@@ -1024,7 +1026,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
         ref={node => {
           gridRef.current = node;
         }}
-        className={`grid ${overlayVisible ? "grid-editing" : ""} ${editingActive ? "grid-editing-enabled" : ""}`}
+        className={`grid ${overlayVisible ? "grid-editing" : ""}`}
         style={{
           gridTemplateColumns: `repeat(${maxColumns}, ${dashboard.columnWidth ?? DEFAULT_COLUMN_WIDTH}px)`,
           gridAutoRows: `${dashboard.rowHeight ?? DEFAULT_ROW_HEIGHT}px`,
