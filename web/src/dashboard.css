@@ -76,7 +76,7 @@
 .dashboard .widget {
   background: var(--panel-bg, transparent);
   border-radius: 20px;
-  overflow: hidden;
+  overflow: visible;
   color: var(--text-color, inherit);
   transition: transform 80ms ease, box-shadow 80ms ease, outline-color 80ms ease;
   cursor: default;
