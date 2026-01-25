@@ -106,6 +106,7 @@ function App() {
   const [deleteName, setDeleteName] = useState<string>("");
   const [deletingDashboard, setDeletingDashboard] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteUsage, setDeleteUsage] = useState<string[]>([]);
   const [editDashboardSlug, setEditDashboardSlug] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
@@ -327,12 +328,17 @@ function App() {
     setDeleteSlug(slug);
     setDeleteName(name || slug);
     setDeleteError(null);
+    const usedBy = playlists
+      .filter(p => p.dashboards?.includes(slug))
+      .map(p => p.name || p.slug);
+    setDeleteUsage(usedBy);
   };
 
   const resetDeleteState = () => {
     setDeleteSlug(null);
     setDeleteName("");
     setDeleteError(null);
+    setDeleteUsage([]);
   };
 
   const openEditDashboard = (dashboard: Dashboard) => {
@@ -372,6 +378,7 @@ function App() {
         throw new Error(body.error || `Failed with status ${res.status}`);
       }
       setDashboards(prev => prev.filter(d => d.slug !== deleteSlug));
+      setPlaylists(prev => prev.map(p => ({ ...p, dashboards: p.dashboards.filter(s => s !== deleteSlug) })));
       if (selectedSlug === deleteSlug) {
         navigateTo(null);
         setSelectedSlug(null);
@@ -1370,6 +1377,18 @@ function App() {
               <div className="modal-body">
                 <p>Are you sure you want to delete “{deleteName || deleteSlug}”?</p>
                 <p className="muted">This only removes the dashboard. Widgets will remain untouched.</p>
+                {deleteUsage.length > 0 ? (
+                  <div style={{ marginTop: 8 }}>
+                    <p className="error-text" style={{ margin: 0 }}>Used in playlists:</p>
+                    <ul className="muted" style={{ margin: 4, paddingLeft: 18 }}>
+                      {deleteUsage.map(name => (
+                        <li key={name}>{name}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <p className="muted" style={{ marginTop: 8 }}>Not referenced by any playlists.</p>
+                )}
                 {deleteError ? <p className="error-text" style={{ marginTop: 8 }}>{deleteError}</p> : null}
               </div>
               <div className="modal-actions">

@@ -415,9 +415,26 @@ app.delete('/api/dashboards/:slug', async (req: Request, res: Response) => {
   }
 
   try {
+    // Remove this dashboard from any playlists referencing it
+    const playlists = await loadPlaylists();
+    const impacted: string[] = [];
+
+    for (const playlist of playlists) {
+      if (!playlist.dashboards.includes(slug)) continue;
+      const nextDashboards = playlist.dashboards.filter(s => s !== slug);
+      const nextPlaylist = { ...playlist, dashboards: nextDashboards } satisfies Playlist;
+      const playlistPath = path.join(playlistsDir, `${playlist.slug}.json`);
+      await prettyWriteJson(playlistPath, nextPlaylist);
+      impacted.push(playlist.slug);
+    }
+
+    if (impacted.length > 0) {
+      playlistsDirty = true;
+    }
+
     await fsPromises.unlink(filePath);
     dashboardsDirty = true;
-    res.json({ ok: true });
+    res.json({ ok: true, removedFromPlaylists: impacted });
   } catch (err) {
     log('error', 'failed to delete dashboard', { slug, error: `${err}` });
     res.status(500).json({ error: 'failed to delete dashboard' });
@@ -555,6 +572,7 @@ app.post('/api/dashboards/:slug', async (req: Request, res: Response) => {
 
   const rowsRaw = req.body?.rows;
   const colsRaw = req.body?.columns;
+  const widgetsRaw = Array.isArray(req.body?.widgets) ? req.body.widgets : undefined;
 
   const maxRows = Number.isFinite(Number(rowsRaw)) ? Number(rowsRaw) : Number.isFinite(existing.maxRows) ? Number(existing.maxRows) : 6;
   const maxColumns = Number.isFinite(Number(colsRaw)) ? Number(colsRaw) : Number.isFinite(existing.maxColumns) ? Number(existing.maxColumns) : 12;
