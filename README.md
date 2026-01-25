@@ -5,6 +5,7 @@ Node.js and React based framework that lets you build excellent dashboards.
 - Use the premade widgets, or fully create your own with HTML, CSS, and TypeScript.
 - API to push data to your dashboards
 - JavaScript jobs fetching data from online resources or databases.
+- Rotate through a set of dashboards automatically with Playlists
 - Supports deploying from Docker or locally.
 
 ## Quick start
@@ -19,6 +20,7 @@ docker run -d --name dashino \
  -v ./widgets:/app/widgets \
  -v ./themes:/app/themes \
  -v ./jobs:/app/jobs \
+ -v ./playlists:/app/playlists \
  -v ./logs:/app/logs \
  -v ./.env:/app/.env \
  dashino:latest
@@ -33,9 +35,9 @@ docker run -d --name dashino \
    - `name`: Display name in the selector.
    - `theme`: Optional CSS file in `web/themes/<theme>.css` to load.
    - `className`: Optional body class to toggle (e.g., `theme-main`).
-  - `maxRows`: Optional grid height cap (defaults to 3). Constrains placement and the edit-mode overlay.
-  - `maxColumns` / `gutter`: Grid sizing (each widget uses column/row spans). Defaults to 4 columns and 16px gutter when omitted.
-  - `columnWidth` / `rowHeight`: Optional pixel sizes for grid cells. Defaults to 300x360 when omitted.
+   - `maxRows`: Optional grid height cap (defaults to 3). Constrains placement and the edit-mode overlay.
+   - `maxColumns` / `gutter`: Grid sizing (each widget uses column/row spans). Defaults to 4 columns and 16px gutter when omitted.
+   - `columnWidth` / `rowHeight`: Optional pixel sizes for grid cells. Defaults to 300x360 when omitted.
    - `widgets`: Array of placements `{ id, type, title?, position { w, h, x, y } }`.
 
 ### Example dashboard JSON
@@ -55,10 +57,13 @@ docker run -d --name dashino \
 }
 ```
 
+## Folders
+
 - `dashboards/`: JSON definitions for each dashboard (layout, widget placements).
 - `themes/`: CSS stylesheets for each dashboard.
 - `widgets/<name>/`: Each widget has `widget.html`, `widget.css`, and `widget.ts` (placeholder) used by the client to render.
 - `jobs/`: Scheduled jobs (`*.js`) to send events targeted at widget IDs.
+- `playlists/`: Automatically rotate a set of dashboards.
 - `assets/`: Images or icons for use with widgets.
 - `logs/`: The log folder.
 - `.env`: File for environment variables and secrets.
@@ -93,7 +98,7 @@ curl -X POST http://localhost:4040/api/events \
 ### Webhooks
 
 - Declare sources with `WEBHOOK_SOURCES` (comma separated). Each source name becomes the `:source` path segment.
-- Secrets live in `WEBHOOK_SECRET_<SOURCE>` (name uppercased, non-alphanumerics become `_`). Requests must send the secret in the `X-Webhook-Secret` header.
+- Secrets live in `WEBHOOK_SECRET_<SOURCE>` (name uppercased, non-alphanumeric become `_`). Requests must send the secret in the `X-Webhook-Secret` header.
 - Optional defaults per source:
   - `WEBHOOK_<SOURCE>_WIDGET_ID`: Force events to a widget ID (payload `widgetId` overrides only if present).
   - `WEBHOOK_<SOURCE>_TYPE`: Force an event type (payload `type` overrides only if present; default is the source name).

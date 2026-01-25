@@ -2,6 +2,7 @@
   "name": "dashino",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "predev": "node scripts/sync-controllers.mjs",
