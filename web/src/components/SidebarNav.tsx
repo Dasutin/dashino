@@ -1,4 +1,8 @@
 import React from "react";
+import BackupIcon from "../icons/Backup";
+import DashboardIcon from "../icons/Dashboard";
+import PlaylistIcon from "../icons/Playlist";
+import ToolsIcon from "../icons/Tools";
 
 export type SidebarNavProps = {
   isHomeActive?: boolean;
@@ -20,13 +24,15 @@ function SidebarNav({ isHomeActive, isPlaylistManagerActive, isBackupsActive, is
           className={`sidebar-item ${isHomeActive ? "active" : ""}`}
           onClick={onSelectHome}
         >
-          Dashboards
+          <DashboardIcon className="sidebar-icon" />
+          <span>Dashboards</span>
         </button>
         <button
           className={`sidebar-item ${isPlaylistManagerActive ? "active" : ""}`}
           onClick={onOpenPlaylistManager}
         >
-          Playlists
+          <PlaylistIcon className="sidebar-icon" />
+          <span>Playlists</span>
         </button>
       </div>
       <div className="sidebar-section sidebar-section-secondary">
@@ -34,13 +40,15 @@ function SidebarNav({ isHomeActive, isPlaylistManagerActive, isBackupsActive, is
           className={`sidebar-item ${isBackupsActive ? "active" : ""}`}
           onClick={onOpenBackups}
         >
-          Backups
+          <BackupIcon className="sidebar-icon" />
+          <span>Backups</span>
         </button>
         <button
           className={`sidebar-item ${isToolsActive ? "active" : ""}`}
           onClick={onOpenTools}
         >
-          Tools
+          <ToolsIcon className="sidebar-icon" />
+          <span>Tools</span>
         </button>
       </div>
       <div className="sidebar-footer">
