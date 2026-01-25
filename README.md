@@ -8,6 +8,8 @@ Node.js and React based framework that lets you build excellent dashboards.
 - Rotate through a set of dashboards automatically with Playlists
 - Supports deploying from Docker or locally.
 
+Dashino is the spiritual successor to Dashing and Smashing.
+
 ## Quick start
 
 - Build image: `docker build -t dashino .`
@@ -28,17 +30,18 @@ docker run -d --name dashino \
 
 ## Create a dashboard
 
-1) Copy a dashboard JSON: duplicate `dashboards/demo.json` to `dashboards/`.
+1) Copy a dashboard JSON: duplicate `dashboards/demotv.json` to `dashboards/`.
 
    1) Fields:
    - `slug`: URL path and selector value (e.g., `kitchen`).
-   - `name`: Display name in the selector.
-   - `theme`: Optional CSS file in `web/themes/<theme>.css` to load.
+   - `name`: Dashboard display name.
+   - `theme`: Optional CSS file in `/themes/<theme>.css` to load.
    - `className`: Optional body class to toggle (e.g., `theme-main`).
-   - `maxRows`: Optional grid height cap (defaults to 3). Constrains placement and the edit-mode overlay.
-   - `maxColumns` / `gutter`: Grid sizing (each widget uses column/row spans). Defaults to 4 columns and 16px gutter when omitted.
+   - `maxRows`: Grid height. Defaults to 3.
+   - `maxColumns`: Grid width. Defaults to 4.
+   - `gutter`: Spacing between widgets. Defaults to 16px.
    - `columnWidth` / `rowHeight`: Optional pixel sizes for grid cells. Defaults to 300x360 when omitted.
-   - `widgets`: Array of placements `{ id, type, title?, position { w, h, x, y } }`.
+   - `widgets`: Array of widget placements `{ id, type, position { w, h, x, y } }`.
 
 ### Example dashboard JSON
 
@@ -48,8 +51,11 @@ docker run -d --name dashino \
   "name": "Kitchen",
   "theme": "main",
   "className": "theme-main",
+  "maxRows": 10,
   "maxColumns": 8,
   "gutter": 8,
+  "columnWidth": 400,
+  "rowHeight": 450,
   "widgets": [
     { "id": "clock", "type": "clock", "position": { "w": 2, "h": 1, "x": 1, "y": 1 } },
     { "id": "forecast", "type": "forecast", "position": { "w": 2, "h": 1, "x": 3, "y": 1 } }
@@ -80,22 +86,24 @@ curl -X POST http://localhost:4040/api/events \
   -d '{"widgetId":"tomorrow","type":"tomorrow","data":{"current":{"temperature":72,"summary":"Sunny","dew_point":60}}}'
 ```
 
-- From the UI: the Event Testing panel on the landing page lets you pick a widget ID and send JSON or plain text. Plain text is wrapped as `{ message: "..." }`.
 - Jobs can emit events on intervals; see `jobs/*.js` for examples of sending `{ widgetId, type, data }` via `emit()`.
 
 ## Event testing
 
-- The main page has an Event Testing panel. Select a widget ID, paste a payload, and click Send. If the text parses as JSON, it will send that JSON's `type` and `data`; otherwise it wraps your text as `{ message: "..." }`.
+- The Tools section on the main page has an Event Testing panel. The Event Testing panel lets you pick a widget ID and send JSON or plain text. Select a widget ID, paste a payload, and click Send. If the text parses as JSON, it will send that JSON's `type` and `data`; otherwise it wraps your text as `{ message: "..." }`.
 
 ## Layout editing
 
-- Widgets are always draggable. When you start dragging, the grid overlay appears with a highlighted drop target under your cursor.
-- After you drop, a banner asks what to do with the new layout:
-  - **Save temporarily**: Stores the layout in your browser `localStorage` (per dashboard slug) and applies it on reload.
+- Pressing `E` on your keyboard enables the layout editing mode.
+- When enabled, widgets can be moved or resized.
+- After after resizing or dragging a widget, a banner at the top of the page asks what to do with the new layout:
+  - **Save temporarily**: Stores the layout in your browser `localStorage` (per dashboard) and applies it on reload.
   - **Save permanently**: Calls `POST /api/dashboards/:slug/layout` to write the positions back to the dashboard JSON on disk and also saves to `localStorage`.
-  - **Revert**: Discards pending changes and restores the last saved layout (permanent if available, otherwise the shipped layout).
+  - **Revert**: Discards pending changes and restores the last saved layout.
 
-### Webhooks
+## Webhooks
+
+Events can be sent as Webhooks to your Dashino dashboards.
 
 - Declare sources with `WEBHOOK_SOURCES` (comma separated). Each source name becomes the `:source` path segment.
 - Secrets live in `WEBHOOK_SECRET_<SOURCE>` (name uppercased, non-alphanumeric become `_`). Requests must send the secret in the `X-Webhook-Secret` header.
@@ -116,7 +124,9 @@ curl -X POST http://localhost:4040/api/webhooks/github \
 ## Troubleshooting (widgets/controllers)
 
 - If you mount custom widgets/controllers at runtime, mount them to `/app/widgets` and start with `REBUILD_ON_START=1` so the client rebuilds on boot.
-- Watch the startup log for `Client rebuild complete`; if you don’t see it, the rebuild didn’t run (.env missing or permission issue).
+- Watch the startup log for `Client rebuild complete`; if you don’t see it, the rebuild didn’t run.
+- Check if jobs that require secrets either have them hardcoded in the job or are in the .env file.
+- Verify all files Dashino uses have the correct permissions.
 - Verify controllers in the image with `node scripts/check-controllers-runtime.mjs` (inside the container) after startup.
 - Ensure event payloads include `widgetId` matching the dashboard entries; otherwise updates are ignored client-side.
 
@@ -143,3 +153,7 @@ curl -X POST http://localhost:4040/api/webhooks/github \
 - `POST /api/webhooks/:source`: Validates `X-Webhook-Secret` and broadcasts the JSON body (or `body.data`) to the configured widget/type for that source.
 - `GET /api/health`: Basic readiness endpoint.
 - `GET /api/dashboards`: Returns available dashboards and layout metadata.
+
+## License
+
+MIT © Dustin Dembrosky
