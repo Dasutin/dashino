@@ -1,8 +1,8 @@
 import React from "react";
-import BackupIcon from "../icons/Backup";
-import DashboardIcon from "../icons/Dashboard";
-import PlaylistIcon from "../icons/Playlist";
-import ToolsIcon from "../icons/Tools";
+import BackupIcon from "@mui/icons-material/Backup";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import PlaylistIcon from "@mui/icons-material/QueueMusic";
+import ToolsIcon from "@mui/icons-material/Build";
 
 export type SidebarNavProps = {
   isHomeActive?: boolean;
