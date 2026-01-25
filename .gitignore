@@ -104,3 +104,5 @@ widgets/*
 !widgets/toggle/**
 web/src/controllers/*
 !web/src/controllers/generated.ts
+playlists/*
+!playlists/demo-playlist.json

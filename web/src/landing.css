@@ -246,6 +246,12 @@ body.landing-mode {
   gap: 16px;
 }
 
+.landing .hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .landing .hero h1 {
   margin: 0 0 6px;
   font-size: 30px;
@@ -309,6 +315,27 @@ body.landing-mode {
   color: var(--text-color);
   border: 1px solid var(--border-color);
   box-shadow: none;
+}
+
+.landing button.danger,
+.modal-actions .danger {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+}
+
+.landing button.danger:hover,
+.modal-actions .danger:hover {
+  box-shadow: var(--button-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.landing button.icon {
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
 .landing .status {
@@ -413,6 +440,16 @@ body.landing-mode {
   gap: 8px;
 }
 
+.landing .playlist-actions button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
 .landing .playlist-name {
   font-weight: 700;
 }
@@ -483,4 +520,135 @@ body.landing-mode {
 
 .landing .reorder button {
   padding: 6px 8px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 30;
+}
+
+.theme-dark .modal-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal {
+  background: var(--panel-bg);
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  width: 520px;
+  max-width: 96vw;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.modal-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.modal-grid {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.modal-body label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--muted-color);
+}
+
+.modal-body input,
+.modal-body textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--control-border);
+  background: var(--control-bg);
+  color: var(--text-color);
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.modal-body input[type="number"] {
+  appearance: textfield;
+}
+
+.modal-body textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.modal-body .full-row {
+  grid-column: 1 / -1;
+}
+
+.modal-row-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.widget-picker {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.widget-picker select {
+  width: 100%;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--control-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.chip button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 1px 3px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.error-text {
+  color: #ef4444;
+  font-weight: 600;
 }

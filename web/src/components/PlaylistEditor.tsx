@@ -41,20 +41,17 @@ function PlaylistEditor({
   canDelete
 }: PlaylistEditorProps) {
   return (
-    <div className="panel playlist-editor">
-      <div className="panel-header">
-        <h3>{canDelete ? "Edit Playlist" : "New Playlist"}</h3>
-      </div>
+    <div className="playlist-editor">
       <div className="panel-grid">
         <label>
           Name
           <input type="text" value={name} onChange={e => onNameChange(e.target.value)} placeholder="Morning loop" />
         </label>
         <label>
-          Slug
-          <input type="text" value={slug} onChange={e => onSlugChange(e.target.value)} placeholder="morning-loop" />
+          Playlist ID (URL)
+          <input type="text" value={slug} onChange={e => onSlugChange(e.target.value)} placeholder="" />
         </label>
-        <label>
+        <label className="full-row">
           Rotation (seconds)
           <input
             type="number"

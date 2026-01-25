@@ -153,6 +153,14 @@ const themesDir = path.join(projectRoot, 'themes');
 const assetsDir = path.join(projectRoot, 'assets');
 const playlistsDir = path.join(projectRoot, 'playlists');
 
+const slugifyValue = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
 if (!fs.existsSync(playlistsDir)) {
   fs.mkdirSync(playlistsDir, { recursive: true });
 }
@@ -307,6 +315,19 @@ function prettyWriteJson(filePath: string, data: unknown) {
   return fsPromises.writeFile(filePath, content, 'utf-8');
 }
 
+function prettyWriteDashboard(filePath: string, dashboard: Dashboard) {
+  const { widgets, ...rest } = dashboard;
+  const base = JSON.stringify({ ...rest, widgets: [] }, null, 2);
+  const widgetsBlock = widgets
+    .map(w => `    ${JSON.stringify(w)}`)
+    .join(',\n');
+  const content = base.replace(
+    /"widgets": \[\]/,
+    widgetsBlock.length > 0 ? `"widgets": [\n${widgetsBlock}\n  ]` : '"widgets": []'
+  );
+  return fsPromises.writeFile(filePath, `${content}\n`, 'utf-8');
+}
+
 const webhookTargets = buildWebhookTargets();
 const webhookSecretHeader = 'x-webhook-secret';
 
@@ -380,6 +401,245 @@ app.get('/api/dashboards', async (_req: Request, res: Response) => {
   res.json({ dashboards });
 });
 
+app.delete('/api/dashboards/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  if (!slug || !isValidSlug(slug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  const filePath = path.join(dashboardsDir, `${slug}.json`);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'dashboard not found' });
+    return;
+  }
+
+  try {
+    await fsPromises.unlink(filePath);
+    dashboardsDirty = true;
+    res.json({ ok: true });
+  } catch (err) {
+    log('error', 'failed to delete dashboard', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to delete dashboard' });
+  }
+});
+
+app.post('/api/dashboards', async (req: Request, res: Response) => {
+  const name = (req.body?.name || '').trim();
+  const shortname = (req.body?.shortname || '').trim();
+  const description = (req.body?.description || '').trim();
+  const theme = (req.body?.theme || '').trim();
+  const rowsRaw = req.body?.rows;
+  const colsRaw = req.body?.columns;
+  const widgetsRaw = Array.isArray(req.body?.widgets) ? req.body.widgets : [];
+
+  if (!name) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+
+  const slugBase = slugifyValue(shortname || name) || 'dashboard';
+  const slug = slugBase;
+  const filePath = path.join(dashboardsDir, `${slug}.json`);
+
+  if (fs.existsSync(filePath)) {
+    res.status(409).json({ error: 'dashboard already exists' });
+    return;
+  }
+
+  const maxRows = Number.isFinite(Number(rowsRaw)) ? Number(rowsRaw) : 6;
+  const maxColumns = Number.isFinite(Number(colsRaw)) ? Number(colsRaw) : 12;
+  const themeName = theme || 'main';
+
+  const maxSlots = Math.max(1, maxRows * maxColumns);
+  const widgetCounts: Record<string, number> = {};
+  const widgets = widgetsRaw
+    .slice(0, maxSlots)
+    .map((item: any) => {
+      const rawType = typeof item === 'string' ? item : item?.type;
+      const type = slugifyValue(rawType || '');
+      if (!type) return null;
+      widgetCounts[type] = (widgetCounts[type] ?? 0) + 1;
+      const id = typeof item === 'object' && typeof item?.id === 'string' && item.id.trim()
+        ? item.id.trim()
+        : widgetCounts[type] === 1
+          ? type
+          : `${type}-${widgetCounts[type]}`;
+      return {
+        id,
+        type,
+        position: { w: 1, h: 1 }
+      } satisfies Dashboard['widgets'][number];
+    })
+    .filter(Boolean) as Dashboard['widgets'];
+
+  if (widgetsRaw.length > maxSlots) {
+    res.status(400).json({ error: `Too many widgets for grid capacity (${maxSlots} slots)` });
+    return;
+  }
+
+  const dashboard: Dashboard = {
+    slug,
+    name,
+    description,
+    maxColumns,
+    maxRows,
+    gutter: 0,
+    widgets,
+    columnWidth: 160,
+    rowHeight: 180,
+    className: themeName ? `theme-${themeName}` : undefined,
+    theme: themeName || undefined
+  } as Dashboard & { className?: string; theme?: string; maxRows?: number; columnWidth?: number; rowHeight?: number };
+
+  try {
+    await prettyWriteDashboard(filePath, dashboard);
+    dashboardsDirty = true;
+    res.status(201).json({ dashboard });
+  } catch (err) {
+    log('error', 'failed to create dashboard', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to create dashboard' });
+  }
+});
+
+app.post('/api/dashboards/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  if (!slug || !isValidSlug(slug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  const filePath = path.join(dashboardsDir, `${slug}.json`);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'dashboard not found' });
+    return;
+  }
+
+  let existing: Dashboard & {
+    className?: string;
+    theme?: string;
+    maxRows?: number;
+    columnWidth?: number;
+    rowHeight?: number;
+  };
+
+  try {
+    const raw = await fsPromises.readFile(filePath, 'utf-8');
+    existing = JSON.parse(raw) as Dashboard & {
+      className?: string;
+      theme?: string;
+      maxRows?: number;
+      columnWidth?: number;
+      rowHeight?: number;
+    };
+  } catch (err) {
+    log('error', 'failed to read dashboard for edit', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to read dashboard' });
+    return;
+  }
+
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : existing.name;
+  if (!name) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+
+  const description = typeof req.body?.description === 'string'
+    ? req.body.description.trim()
+    : existing.description ?? '';
+
+  const themeProvided = typeof req.body?.theme === 'string';
+  const themeInput = themeProvided ? req.body.theme.trim() : undefined;
+  const existingThemeName = existing.theme ?? (existing.className?.startsWith('theme-') ? existing.className.replace(/^theme-/, '') : undefined);
+  const themeName = themeProvided ? themeInput || '' : existingThemeName ?? '';
+
+  const rowsRaw = req.body?.rows;
+  const colsRaw = req.body?.columns;
+
+  const maxRows = Number.isFinite(Number(rowsRaw)) ? Number(rowsRaw) : Number.isFinite(existing.maxRows) ? Number(existing.maxRows) : 6;
+  const maxColumns = Number.isFinite(Number(colsRaw)) ? Number(colsRaw) : Number.isFinite(existing.maxColumns) ? Number(existing.maxColumns) : 12;
+
+  if (!Number.isFinite(maxColumns) || maxColumns <= 0) {
+    res.status(400).json({ error: 'columns must be greater than 0' });
+    return;
+  }
+
+  if (!Number.isFinite(maxRows) || maxRows <= 0) {
+    res.status(400).json({ error: 'rows must be greater than 0' });
+    return;
+  }
+
+  const maxSlots = Math.max(1, maxRows * maxColumns);
+
+  const sanitizeWidgets = (items: unknown[]): Dashboard['widgets'] => {
+    const counts: Record<string, number> = {};
+    const ids = new Set<string>();
+
+    const widgets = items
+      .map(item => {
+        const raw = item as any;
+        const rawType = typeof raw === 'string' ? raw : raw?.type;
+        const type = slugifyValue(rawType || '');
+        if (!type) return null;
+
+        const rawId = typeof raw === 'object' && typeof raw?.id === 'string' ? raw.id.trim() : '';
+
+        counts[type] = (counts[type] ?? 0) + 1;
+        let id = rawId || (counts[type] === 1 ? type : `${type}-${counts[type]}`);
+        let attempt = counts[type];
+        while (ids.has(id)) {
+          attempt += 1;
+          id = `${type}-${attempt}`;
+        }
+
+        ids.add(id);
+
+        const pos = raw?.position || {};
+        const position: Dashboard['widgets'][number]['position'] = {};
+        if (Number.isFinite(pos.w)) position.w = Number(pos.w);
+        if (Number.isFinite(pos.h)) position.h = Number(pos.h);
+        if (Number.isFinite(pos.x)) position.x = Number(pos.x);
+        if (Number.isFinite(pos.y)) position.y = Number(pos.y);
+
+        return { id, type, position } satisfies Dashboard['widgets'][number];
+      })
+      .filter(Boolean) as Dashboard['widgets'];
+
+    return widgets;
+  };
+
+  let nextWidgets: Dashboard['widgets'] = existing.widgets ?? [];
+
+  if (widgetsRaw !== undefined) {
+    nextWidgets = sanitizeWidgets(widgetsRaw);
+  }
+
+  if (nextWidgets.length > maxSlots) {
+    res.status(400).json({ error: `Too many widgets for grid capacity (${maxSlots} slots)` });
+    return;
+  }
+
+  const nextDashboard: Dashboard & { className?: string; theme?: string; maxRows?: number; columnWidth?: number; rowHeight?: number } = {
+    ...existing,
+    name,
+    description,
+    maxColumns,
+    maxRows,
+    className: themeProvided ? (themeName ? `theme-${themeName}` : undefined) : existing.className,
+    theme: themeProvided ? (themeName || undefined) : existingThemeName,
+    widgets: nextWidgets
+  };
+
+  try {
+    await prettyWriteDashboard(filePath, nextDashboard);
+    dashboardsDirty = true;
+    res.json({ ok: true, dashboard: nextDashboard });
+  } catch (err) {
+    log('error', 'failed to update dashboard', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to update dashboard' });
+  }
+});
+
 app.post('/api/dashboards/:slug/layout', async (req: Request, res: Response) => {
   const slug = req.params.slug;
   const layout = req.body?.layout as Record<string, { x?: number; y?: number; w?: number; h?: number }> | undefined;
@@ -423,17 +683,7 @@ app.post('/api/dashboards/:slug/layout', async (req: Request, res: Response) => 
       const nextDashboard: Dashboard = { ...json, widgets: updatedWidgets };
 
       // Pretty-print with widgets one per line
-      const { widgets, ...rest } = nextDashboard;
-      const base = JSON.stringify({ ...rest, widgets: [] }, null, 2);
-      const widgetsBlock = widgets
-        .map(w => `    ${JSON.stringify(w)}`)
-        .join(',\n');
-      const content = base.replace(
-        /"widgets": \[\]/,
-        widgetsBlock.length > 0 ? `"widgets": [\n${widgetsBlock}\n  ]` : '"widgets": []'
-      );
-
-      await fsPromises.writeFile(full, `${content}\n`, 'utf-8');
+      await prettyWriteDashboard(full, nextDashboard);
       dashboardsDirty = true;
       log('info', 'dashboard layout saved', { slug, file });
       res.json({ ok: true });

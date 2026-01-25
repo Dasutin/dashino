@@ -1,0 +1,9 @@
+{
+  "slug": "demo-playlist",
+  "name": "Demo Playlist",
+  "rotationSeconds": 30,
+  "dashboards": [
+    "demo",
+    "demotv"
+  ]
+}
