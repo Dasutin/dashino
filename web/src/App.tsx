@@ -1199,7 +1199,7 @@ function App() {
                     <tbody>
                       {infoTableRows.map(([label, value]) => (
                         <tr key={label} style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                          <td style={{ padding: "14px 0", fontWeight: 600 }}>{label}</td>
+                          <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
                           <td style={{ padding: "14px 0" }}>{value}</td>
                         </tr>
                       ))}
@@ -1210,14 +1210,25 @@ function App() {
                     <tbody>
                       {supportTableRows.map(([label, value]) => (
                         <tr key={label} style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                          <td style={{ padding: "14px 0", fontWeight: 600 }}>{label}</td>
+                          <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
                           <td style={{ padding: "14px 0" }}>{value}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   <h2 style={{ margin: 0, marginTop: 28 }}>Support Dashino</h2>
-                  <p className="muted">Star the project on GitHub or open an issue if you run into trouble.</p>
+                  <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
+                    <tbody>
+                      <tr style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                        <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>Buy me a coffee</td>
+                        <td style={{ padding: "14px 0" }}>
+                          <a href="https://ko-fi.com/B0B21T1VYK" target="_blank" rel="noreferrer">
+                            <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Ko-fi" style={{ height: 28 }} />
+                          </a>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               ) : null}
             </div>
