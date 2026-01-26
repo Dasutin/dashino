@@ -16,8 +16,8 @@ const PlaylistView = lazy(() => import("./PlaylistView"));
 
 type Appearance = "light" | "dark";
 const PLAYLISTS_ROUTE = "playlists";
-const BACKUPS_ROUTE = "backups";
-const TOOLS_ROUTE = "tools";
+const BACKUPS_ROUTE = "settings";
+const APP_VERSION = "0.1.0";
 
 const DEFAULT_WIDGET_TYPES = [
   "camera",
@@ -59,10 +59,33 @@ function App() {
   const [notFound, setNotFound] = useState(false);
   const isPlaylistManager = pathSlug === PLAYLISTS_ROUTE;
   const isBackupsPage = pathSlug === BACKUPS_ROUTE;
-  const isToolsPage = pathSlug === TOOLS_ROUTE;
 
   const [rootTargetWidget, setRootTargetWidget] = useState("");
   const [rootMessage, setRootMessage] = useState("");
+  const timeZone = useMemo(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown";
+    } catch (err) {
+      console.error("Failed to detect timezone", err);
+      return "Unknown";
+    }
+  }, []);
+
+  const infoTableRows = useMemo(() => (
+    [
+      ["Version", `v${APP_VERSION}`],
+      ["Total Dashboards", String(dashboards.length)],
+      ["Total Playlists", String(playlists.length)],
+      ["Time Zone", timeZone]
+    ]
+  ), [dashboards.length, playlists.length, timeZone]);
+
+  const supportTableRows = useMemo(() => (
+    [
+      ["Documentation", <a href="https://github.com/Dasutin/dashino#readme" target="_blank" rel="noreferrer">GitHub README</a>],
+      ["GitHub Issues", <a href="https://github.com/Dasutin/dashino/issues" target="_blank" rel="noreferrer">Issue Tracker</a>]
+    ]
+  ), []);
 
   const [appearance, setAppearance] = useState<Appearance>(() => {
     if (typeof window === "undefined") return "light";
@@ -70,6 +93,8 @@ function App() {
     if (stored === "light" || stored === "dark") return stored;
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
+
+  const [settingsTab, setSettingsTab] = useState<"backup" | "tools" | "about">("backup");
 
   const widgetChoices = useMemo(() => {
     const discovered = dashboards.flatMap(d => d.widgets.map(w => w.type));
@@ -229,13 +254,6 @@ function App() {
     }
 
     if (pathSlug === BACKUPS_ROUTE) {
-      setSelectedSlug(null);
-      setActivePlaylistSlug(null);
-      setNotFound(false);
-      return;
-    }
-
-    if (pathSlug === TOOLS_ROUTE) {
       setSelectedSlug(null);
       setActivePlaylistSlug(null);
       setNotFound(false);
@@ -647,13 +665,6 @@ function App() {
     navigateTo(BACKUPS_ROUTE);
   };
 
-  const handleOpenTools = () => {
-    setSelectedSlug(null);
-    setActivePlaylistSlug(null);
-    setNotFound(false);
-    navigateTo(TOOLS_ROUTE);
-  };
-
   const handleEditPlaylist = (playlist: Playlist) => {
     setEditingSlug(playlist.slug);
     setEditorName(playlist.name);
@@ -797,80 +808,6 @@ function App() {
     );
   }
 
-  if (isToolsPage) {
-    return (
-      <div className="landing-shell">
-        <SidebarNav
-          isHomeActive={false}
-          isPlaylistManagerActive={false}
-          isBackupsActive={false}
-          isToolsActive
-          onSelectHome={handleGoHome}
-          onOpenPlaylistManager={handleOpenPlaylistManager}
-          onOpenBackups={handleOpenBackups}
-          onOpenTools={handleOpenTools}
-        />
-
-        <main className="landing landing-main">
-          <div className="top-bar">
-            <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-              {appearance === "dark" ? <SunIcon /> : <MoonIcon />}
-            </button>
-          </div>
-
-          <header className="hero">
-            <div>
-              <h1>Tools</h1>
-              <p>Developer utilities for testing events.</p>
-            </div>
-          </header>
-
-          <section className="panel">
-            <div className="panel-header">
-              <h3>Event Testing</h3>
-            </div>
-            <div className="panel-grid">
-              <label>
-                Widget
-                <select
-                  value={rootTargetWidget}
-                  onChange={e => setRootTargetWidget(e.target.value)}
-                >
-                  <option value="">Select a widget</option>
-                  {dashboards.flatMap(d =>
-                    d.widgets.map(w => (
-                      <option key={`${d.slug}-${w.id}`} value={w.id}>
-                        {d.name}: {w.id}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </label>
-              <label>
-                Message
-                <input
-                  type="text"
-                  placeholder="message or JSON payload"
-                  value={rootMessage}
-                  onChange={e => setRootMessage(e.target.value)}
-                />
-              </label>
-              <div className="panel-actions">
-                <button
-                  onClick={() => {
-                    const widgetId = rootTargetWidget || undefined;
-                    sendDemoEvent(widgetId, rootMessage.trim() || undefined);
-                  }}
-                >
-                  Send event
-                </button>
-              </div>
-            </div>
-          </section>
-        </main>
-      </div>
-    );
-  }
 
   if (isBackupsPage) {
     return (
@@ -879,11 +816,9 @@ function App() {
           isHomeActive={false}
           isPlaylistManagerActive={false}
           isBackupsActive
-          isToolsActive={false}
           onSelectHome={handleGoHome}
           onOpenPlaylistManager={handleOpenPlaylistManager}
           onOpenBackups={handleOpenBackups}
-          onOpenTools={handleOpenTools}
         />
 
         <main className="landing landing-main">
@@ -895,19 +830,110 @@ function App() {
 
           <header className="hero">
             <div>
-              <h1>Backups</h1>
-              <p>Download a snapshot of dashboards, widgets, themes, jobs, and playlists.</p>
-            </div>
-            <div className="controls">
-              <button
-                onClick={() => {
-                  window.location.href = backupUrl;
-                }}
-              >
-                Create backup
-              </button>
+              <h1>Settings</h1>
+              <p>Download backups and access utilities for your Dashino instance.</p>
             </div>
           </header>
+
+          <div className="panel" style={{ marginTop: 12 }}>
+            <div className="panel-header">
+              <h3>Settings</h3>
+            </div>
+            <div className="tab-row">
+              <button className={`tab ${settingsTab === "backup" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("backup")}>Backup</button>
+              <button className={`tab ${settingsTab === "tools" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("tools")}>Tools</button>
+              <button className={`tab ${settingsTab === "about" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("about")}>About</button>
+            </div>
+            <div className="tab-panels">
+              {settingsTab === "backup" ? (
+                <div className="tab-panel">
+                  <p className="muted" style={{ marginBottom: 8 }}>Download a snapshot of dashboards, widgets, themes, jobs, and playlists.</p>
+                  <div className="panel-actions" style={{ marginTop: 6 }}>
+                    <button
+                      onClick={() => {
+                        window.location.href = backupUrl;
+                      }}
+                    >
+                      Create backup
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {settingsTab === "tools" ? (
+                <div className="tab-panel">
+                  <div className="panel-header" style={{ padding: 0, marginBottom: 10 }}>
+                    <h3 style={{ margin: 0, fontSize: 16 }}>Event Testing</h3>
+                  </div>
+                  <div className="panel-grid">
+                    <label>
+                      Widget
+                      <select
+                        value={rootTargetWidget}
+                        onChange={e => setRootTargetWidget(e.target.value)}
+                      >
+                        <option value="">Select a widget</option>
+                        {dashboards.flatMap(d =>
+                          d.widgets.map(w => (
+                            <option key={`${d.slug}-${w.id}`} value={w.id}>
+                              {d.name}: {w.id}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </label>
+                    <label>
+                      Message
+                      <input
+                        type="text"
+                        placeholder="message or JSON payload"
+                        value={rootMessage}
+                        onChange={e => setRootMessage(e.target.value)}
+                      />
+                    </label>
+                    <div className="panel-actions">
+                      <button
+                        onClick={() => {
+                          const widgetId = rootTargetWidget || undefined;
+                          sendDemoEvent(widgetId, rootMessage.trim() || undefined);
+                        }}
+                      >
+                        Send event
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {settingsTab === "about" ? (
+                <div className="tab-panel">
+                  <h2 style={{ margin: 0, marginBottom: 24 }}>About Dashino</h2>
+                  <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
+                    <tbody>
+                      {infoTableRows.map(([label, value]) => (
+                        <tr key={label} style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                          <td style={{ padding: "14px 0", fontWeight: 600 }}>{label}</td>
+                          <td style={{ padding: "14px 0" }}>{value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <h2 style={{ margin: 0, marginTop: 28, marginBottom: 18 }}>Getting Support</h2>
+                  <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
+                    <tbody>
+                      {supportTableRows.map(([label, value]) => (
+                        <tr key={label} style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                          <td style={{ padding: "14px 0", fontWeight: 600 }}>{label}</td>
+                          <td style={{ padding: "14px 0" }}>{value}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <h2 style={{ margin: 0, marginTop: 28 }}>Support Dashino</h2>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </main>
       </div>
     );
@@ -920,11 +946,9 @@ function App() {
           isHomeActive={false}
           isPlaylistManagerActive
           isBackupsActive={false}
-          isToolsActive={false}
           onSelectHome={handleGoHome}
           onOpenPlaylistManager={handleOpenPlaylistManager}
           onOpenBackups={handleOpenBackups}
-          onOpenTools={handleOpenTools}
         />
 
         <main className="landing landing-main">
@@ -1055,14 +1079,12 @@ function App() {
   return (
     <div className="landing-shell">
       <SidebarNav
-        isHomeActive={!isPlaylistManager && !isBackupsPage && !isToolsPage}
+        isHomeActive={!isPlaylistManager && !isBackupsPage}
         isPlaylistManagerActive={false}
         isBackupsActive={isBackupsPage}
-        isToolsActive={isToolsPage}
         onSelectHome={handleGoHome}
         onOpenPlaylistManager={handleOpenPlaylistManager}
         onOpenBackups={handleOpenBackups}
-        onOpenTools={handleOpenTools}
       />
 
       <main className="landing landing-main">

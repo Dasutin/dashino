@@ -10,6 +10,10 @@
   --hero-text: #ffffff;
   --control-bg: #ffffff;
   --control-border: #e5e7eb;
+  --tab-inactive-color: #6b7280;
+  --tab-hover-color: #111827;
+  --tab-active-color: #0ea5e9;
+  --tab-hover-underline-color: #111827;
   --button-bg: #ffffff;
   --button-text: #0f172a;
   --button-border: transparent;
@@ -32,6 +36,10 @@
   --hero-text: #e5e7eb;
   --control-bg: #111827;
   --control-border: #1f2937;
+  --tab-inactive-color: #94a3b8;
+  --tab-hover-color: #ffffff;
+  --tab-active-color: #f6c344;
+  --tab-hover-underline-color: #ffffff;
   --button-bg: #111827;
   --button-text: #e5e7eb;
   --button-border: #1f2937;
@@ -375,6 +383,96 @@ body.landing-mode {
   align-items: baseline;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.tab-row {
+  display: inline-flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+.tab {
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--tab-inactive-color) !important;
+  border-radius: 10px 10px 0 0;
+  padding: 8px 12px;
+  cursor: pointer;
+  box-shadow: none !important;
+  outline: none !important;
+  appearance: none;
+  border-bottom: 1px solid transparent;
+  position: relative;
+}
+
+.tab:focus,
+.tab:focus-visible,
+.tab:focus-within {
+  outline: none;
+  border: none;
+  box-shadow: none;
+}
+
+.tab:hover,
+.tab:focus,
+.tab:focus-visible,
+.tab:focus-within,
+.tab:active {
+  color: var(--tab-hover-color) !important;
+  border-bottom-color: var(--tab-hover-underline-color) !important;
+}
+
+.tab.active:hover,
+.tab.active:focus,
+.tab.active:focus-visible,
+.tab.active:focus-within,
+.tab.active:active {
+  border-bottom-color: transparent !important;
+}
+
+.tab.active {
+  background: var(--hero-gradient);
+  color: var(--tab-active-color) !important;
+  box-shadow: none;
+  border-bottom-color: transparent;
+}
+
+/* Fallback underline using pseudo-element for browsers overriding borders */
+.tab:hover::after,
+.tab:focus::after,
+.tab:focus-visible::after,
+.tab:focus-within::after,
+.tab:active::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -7px;
+  height: 1px;
+  background: var(--tab-hover-underline-color);
+  border-radius: 999px;
+}
+
+.tab.active:hover::after,
+.tab.active:focus::after,
+.tab.active:focus-visible::after,
+.tab.active:focus-within::after,
+.tab.active:active::after {
+  content: none;
+}
+
+.tab-panels {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.tab-panel {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--control-bg);
 }
 
 .landing .panel-header h3 {

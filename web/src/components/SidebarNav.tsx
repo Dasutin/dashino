@@ -2,20 +2,17 @@ import React from "react";
 import BackupIcon from "@mui/icons-material/Backup";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PlaylistIcon from "@mui/icons-material/QueueMusic";
-import ToolsIcon from "@mui/icons-material/Build";
 
 export type SidebarNavProps = {
   isHomeActive?: boolean;
   isPlaylistManagerActive?: boolean;
   isBackupsActive?: boolean;
-  isToolsActive?: boolean;
   onSelectHome: () => void;
   onOpenPlaylistManager: () => void;
   onOpenBackups: () => void;
-  onOpenTools: () => void;
 };
 
-function SidebarNav({ isHomeActive, isPlaylistManagerActive, isBackupsActive, isToolsActive, onSelectHome, onOpenPlaylistManager, onOpenBackups, onOpenTools }: SidebarNavProps) {
+function SidebarNav({ isHomeActive, isPlaylistManagerActive, isBackupsActive, onSelectHome, onOpenPlaylistManager, onOpenBackups }: SidebarNavProps) {
   return (
     <aside className="sidebar-nav">
       <div className="sidebar-brand">Dashino</div>
@@ -41,14 +38,7 @@ function SidebarNav({ isHomeActive, isPlaylistManagerActive, isBackupsActive, is
           onClick={onOpenBackups}
         >
           <BackupIcon className="sidebar-icon" />
-          <span>Backups</span>
-        </button>
-        <button
-          className={`sidebar-item ${isToolsActive ? "active" : ""}`}
-          onClick={onOpenTools}
-        >
-          <ToolsIcon className="sidebar-icon" />
-          <span>Tools</span>
+          <span>Settings</span>
         </button>
       </div>
       <div className="sidebar-footer">
