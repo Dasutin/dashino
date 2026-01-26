@@ -5,12 +5,13 @@ import DownloadIcon from "@mui/icons-material/Download";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EditIcon from "@mui/icons-material/Edit";
 import ClearIcon from "@mui/icons-material/Clear";
+import LightModeIcon from "@mui/icons-material/LightMode";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import StorageIcon from "@mui/icons-material/Storage";
 import type { Dashboard, Playlist } from "./types";
 import SidebarNav from "./components/SidebarNav";
 import PlaylistEditor from "./components/PlaylistEditor";
 import slugify from "./utils/slugify";
-import SunIcon from "./icons/Sun";
-import MoonIcon from "./icons/Moon";
 import "./landing.css";
 
 const DashboardView = lazy(() => import("./DashboardView"));
@@ -112,6 +113,10 @@ function App() {
       ["GitHub Issues", <a href="https://github.com/Dasutin/dashino/issues" target="_blank" rel="noreferrer">Issue Tracker</a>]
     ]
   ), []);
+
+  const aboutRowStyle = useMemo(() => ({
+    borderTop: "1px solid var(--border-color, rgba(0,0,0,0.12))",
+  }), []);
 
   const [appearance, setAppearance] = useState<Appearance>(() => {
     if (typeof window === "undefined") return "light";
@@ -781,6 +786,11 @@ function App() {
     navigateTo(BACKUPS_ROUTE);
   };
 
+  const handleOpenAbout = () => {
+    setSettingsTab("about");
+    handleOpenBackups();
+  };
+
   const handleCreateBackup = async () => {
     setCreatingBackup(true);
     setBackupsError(null);
@@ -993,15 +1003,18 @@ function App() {
           isHomeActive={false}
           isPlaylistManagerActive={false}
           isBackupsActive
+          buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+          version={APP_VERSION.replace(/^v/i, "")}
           onSelectHome={handleGoHome}
           onOpenPlaylistManager={handleOpenPlaylistManager}
           onOpenBackups={handleOpenBackups}
+          onOpenAbout={handleOpenAbout}
         />
 
         <main className="landing landing-main">
           <div className="top-bar">
             <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-              {appearance === "dark" ? <SunIcon /> : <MoonIcon />}
+              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
             </button>
           </div>
 
@@ -1198,7 +1211,7 @@ function App() {
                   <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
                     <tbody>
                       {infoTableRows.map(([label, value]) => (
-                        <tr key={label} style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                        <tr key={label} style={aboutRowStyle}>
                           <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
                           <td style={{ padding: "14px 0" }}>{value}</td>
                         </tr>
@@ -1209,7 +1222,7 @@ function App() {
                   <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
                     <tbody>
                       {supportTableRows.map(([label, value]) => (
-                        <tr key={label} style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                        <tr key={label} style={aboutRowStyle}>
                           <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
                           <td style={{ padding: "14px 0" }}>{value}</td>
                         </tr>
@@ -1219,7 +1232,7 @@ function App() {
                   <h2 style={{ margin: 0, marginTop: 28 }}>Support Dashino</h2>
                   <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
                     <tbody>
-                      <tr style={{ borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                      <tr style={aboutRowStyle}>
                         <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>Buy me a coffee</td>
                         <td style={{ padding: "14px 0" }}>
                           <a href="https://ko-fi.com/B0B21T1VYK" target="_blank" rel="noreferrer">
@@ -1245,15 +1258,18 @@ function App() {
           isHomeActive={false}
           isPlaylistManagerActive
           isBackupsActive={false}
+          buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+          version={APP_VERSION.replace(/^v/i, "")}
           onSelectHome={handleGoHome}
           onOpenPlaylistManager={handleOpenPlaylistManager}
           onOpenBackups={handleOpenBackups}
+          onOpenAbout={handleOpenAbout}
         />
 
         <main className="landing landing-main">
           <div className="top-bar">
             <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-              {appearance === "dark" ? <SunIcon /> : <MoonIcon />}
+              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
             </button>
           </div>
 
@@ -1381,17 +1397,20 @@ function App() {
         isHomeActive={!isPlaylistManager && !isBackupsPage}
         isPlaylistManagerActive={false}
         isBackupsActive={isBackupsPage}
+        buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+        version={APP_VERSION.replace(/^v/i, "")}
         onSelectHome={handleGoHome}
         onOpenPlaylistManager={handleOpenPlaylistManager}
         onOpenBackups={handleOpenBackups}
+        onOpenAbout={handleOpenAbout}
       />
 
       <main className="landing landing-main">
-        <div className="top-bar">
-          <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-            {appearance === "dark" ? <SunIcon /> : <MoonIcon />}
-          </button>
-        </div>
+          <div className="top-bar">
+            <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
+              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+            </button>
+          </div>
 
         {notFound ? (
           <header className="hero">
