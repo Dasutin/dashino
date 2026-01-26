@@ -152,6 +152,7 @@ const jobsDir = path.join(projectRoot, 'jobs');
 const themesDir = path.join(projectRoot, 'themes');
 const assetsDir = path.join(projectRoot, 'assets');
 const playlistsDir = path.join(projectRoot, 'playlists');
+const backupsDir = path.join(projectRoot, 'backups');
 
 const slugifyValue = (value: string) =>
   value
@@ -163,6 +164,9 @@ const slugifyValue = (value: string) =>
 
 if (!fs.existsSync(playlistsDir)) {
   fs.mkdirSync(playlistsDir, { recursive: true });
+}
+if (!fs.existsSync(backupsDir)) {
+  fs.mkdirSync(backupsDir, { recursive: true });
 }
 // Serve built client assets (dist/web) when running the compiled server.
 // __dirname resolves to dist/server at runtime, so the client build sits at ../web
@@ -932,11 +936,10 @@ app.get('/api/health', (_req: Request, res: Response<Health>) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/api/backup.zip', async (_req: Request, res: Response) => {
-  const createdAt = new Date();
-  const timestamp = createdAt.toISOString().replace(/[:.]/g, '-');
-  const filename = `dashino-backup-${timestamp}.zip`;
+type BackupMeta = { name: string; size: number; createdAt: string };
+type LogMeta = { name: string; size: number; modifiedAt: string };
 
+function buildBackupArchive(createdAt: Date) {
   const archive = archiver('zip', { zlib: { level: 9 } });
   const includes: string[] = [];
   const sources = [
@@ -946,6 +949,31 @@ app.get('/api/backup.zip', async (_req: Request, res: Response) => {
     { name: 'jobs', dir: jobsDir },
     { name: 'playlists', dir: playlistsDir }
   ];
+
+  for (const src of sources) {
+    if (!fs.existsSync(src.dir)) {
+      log('warn', 'backup source missing', { dir: src.dir });
+      continue;
+    }
+    includes.push(src.name);
+    archive.directory(src.dir, src.name);
+  }
+
+  const manifest = {
+    createdAt: createdAt.toISOString(),
+    includes
+  };
+  archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
+
+  return archive;
+}
+
+app.get('/api/backup.zip', async (_req: Request, res: Response) => {
+  const createdAt = new Date();
+  const timestamp = createdAt.toISOString().replace(/[:.]/g, '-');
+  const filename = `dashino-backup-${timestamp}.zip`;
+
+  const archive = buildBackupArchive(createdAt);
 
   const handleError = (err: unknown) => {
     log('error', 'backup zip error', { error: `${err}` });
@@ -980,26 +1008,314 @@ app.get('/api/backup.zip', async (_req: Request, res: Response) => {
 
   archive.pipe(res);
 
-  for (const src of sources) {
-    if (!fs.existsSync(src.dir)) {
-      log('warn', 'backup source missing', { dir: src.dir });
-      continue;
-    }
-    includes.push(src.name);
-    archive.directory(src.dir, src.name);
-  }
-
-  const manifest = {
-    createdAt: createdAt.toISOString(),
-    includes
-  };
-  archive.append(JSON.stringify(manifest, null, 2), { name: 'manifest.json' });
-
   try {
     await archive.finalize();
   } catch (err) {
     handleError(err);
   }
+});
+
+app.get('/api/backups', async (_req: Request, res: Response) => {
+  try {
+    const entries = await fsPromises.readdir(backupsDir);
+    const backups: BackupMeta[] = [];
+    for (const name of entries) {
+      if (!name.endsWith('.zip')) continue;
+      const full = path.join(backupsDir, name);
+      try {
+        const stat = await fsPromises.stat(full);
+        backups.push({
+          name,
+          size: stat.size,
+          createdAt: new Date(stat.birthtimeMs || stat.mtimeMs).toISOString()
+        });
+      } catch {
+        // skip unreadable entries
+      }
+    }
+    backups.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+    res.json({ backups });
+  } catch (err) {
+    log('error', 'list backups failed', { error: `${err}` });
+    res.status(500).json({ error: 'failed to list backups' });
+  }
+});
+
+app.post('/api/backups', async (_req: Request, res: Response) => {
+  const createdAt = new Date();
+  const timestamp = createdAt.toISOString().replace(/[:.]/g, '-');
+  const filename = `dashino-backup-${timestamp}.zip`;
+  const target = path.join(backupsDir, filename);
+
+  const archive = buildBackupArchive(createdAt);
+  const output = fs.createWriteStream(target);
+
+  const finalizePromise = new Promise<void>((resolve, reject) => {
+    output.on('close', () => resolve());
+    output.on('error', reject);
+    archive.on('error', reject);
+  });
+
+  archive.pipe(output);
+
+  try {
+    await archive.finalize();
+    await finalizePromise;
+    const stat = await fsPromises.stat(target);
+    const meta: BackupMeta = { name: filename, size: stat.size, createdAt: createdAt.toISOString() };
+    res.json({ backup: meta });
+  } catch (err) {
+    log('error', 'create backup failed', { error: `${err}` });
+    try {
+      await fsPromises.unlink(target);
+    } catch {
+      // ignore cleanup failures
+    }
+    res.status(500).json({ error: 'failed to create backup' });
+  }
+});
+
+app.get('/api/backups/:name', async (req: Request, res: Response) => {
+  const name = req.params.name;
+  const target = path.resolve(backupsDir, name);
+  if (!target.startsWith(backupsDir)) {
+    res.status(400).json({ error: 'invalid backup name' });
+    return;
+  }
+  try {
+    await fsPromises.stat(target);
+  } catch {
+    res.status(404).json({ error: 'backup not found' });
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.download(target, name);
+});
+
+app.delete('/api/backups/:name', async (req: Request, res: Response) => {
+  const name = req.params.name;
+  const target = path.resolve(backupsDir, name);
+  if (!target.startsWith(backupsDir)) {
+    res.status(400).json({ error: 'invalid backup name' });
+    return;
+  }
+  try {
+    await fsPromises.unlink(target);
+    res.json({ ok: true });
+  } catch (err) {
+    if ((err as any)?.code === 'ENOENT') {
+      res.status(404).json({ error: 'backup not found' });
+      return;
+    }
+    log('error', 'delete backup failed', { error: `${err}` });
+    res.status(500).json({ error: 'failed to delete backup' });
+  }
+});
+
+const allowedLogExtensions = new Set(['.log', '.zip']);
+
+app.get('/api/logs', async (_req: Request, res: Response) => {
+  try {
+    const entries = await fsPromises.readdir(logDir);
+    const logs: LogMeta[] = [];
+    for (const name of entries) {
+      if (!allowedLogExtensions.has(path.extname(name))) continue;
+      const full = path.join(logDir, name);
+      try {
+        const stat = await fsPromises.stat(full);
+        logs.push({ name, size: stat.size, modifiedAt: new Date(stat.mtimeMs || stat.ctimeMs).toISOString() });
+      } catch {
+        // skip unreadable entries
+      }
+    }
+    logs.sort((a, b) => (a.modifiedAt > b.modifiedAt ? -1 : 1));
+    res.json({ logs });
+  } catch (err) {
+    log('error', 'list logs failed', { error: `${err}` });
+    res.status(500).json({ error: 'failed to list logs' });
+  }
+});
+
+app.get('/api/logs/:name', async (req: Request, res: Response) => {
+  const name = req.params.name;
+  if (!allowedLogExtensions.has(path.extname(name))) {
+    res.status(400).json({ error: 'invalid log name' });
+    return;
+  }
+  const target = path.resolve(logDir, name);
+  if (!target.startsWith(logDir)) {
+    res.status(400).json({ error: 'invalid log name' });
+    return;
+  }
+  try {
+    await fsPromises.stat(target);
+  } catch {
+    res.status(404).json({ error: 'log not found' });
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.download(target, name);
+});
+
+app.delete('/api/logs/:name', async (req: Request, res: Response) => {
+  const name = req.params.name;
+  if (!allowedLogExtensions.has(path.extname(name))) {
+    res.status(400).json({ error: 'invalid log name' });
+    return;
+  }
+  const target = path.resolve(logDir, name);
+  if (!target.startsWith(logDir)) {
+    res.status(400).json({ error: 'invalid log name' });
+    return;
+  }
+  try {
+    await fsPromises.unlink(target);
+    res.json({ ok: true });
+  } catch (err) {
+    if ((err as any)?.code === 'ENOENT') {
+      res.status(404).json({ error: 'log not found' });
+      return;
+    }
+    log('error', 'delete log failed', { error: `${err}` });
+    res.status(500).json({ error: 'failed to delete log' });
+  }
+});
+
+app.get('/api/logs/:name/stream', async (req: Request, res: Response) => {
+  const name = req.params.name;
+  if (!allowedLogExtensions.has(path.extname(name))) {
+    res.status(400).json({ error: 'invalid log name' });
+    return;
+  }
+  const freshOnly = (() => {
+    const q = req.query?.fresh;
+    if (typeof q === 'string') return q === '1' || q.toLowerCase() === 'true';
+    return false;
+  })();
+  const target = path.resolve(logDir, name);
+  if (!target.startsWith(logDir)) {
+    res.status(400).json({ error: 'invalid log name' });
+    return;
+  }
+
+  let stat: fs.Stats;
+  try {
+    stat = await fsPromises.stat(target);
+  } catch {
+    res.status(404).json({ error: 'log not found' });
+    return;
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-store',
+    Connection: 'keep-alive'
+  });
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+  res.write('retry: 2000\n\n');
+
+  let closed = false;
+  let lastSize = stat.size;
+  let pollTimer: NodeJS.Timeout | undefined;
+
+  const sendChunk = (chunk: Buffer | string) => {
+    if (closed) return;
+    const text = chunk.toString('utf-8');
+    if (!text) return;
+    const payload = text.replace(/\r?\n/g, '\n').split('\n').join('\ndata: ');
+    res.write(`data: ${payload}\n\n`);
+  };
+
+  let watcher: fs.FSWatcher | undefined;
+
+  const heartbeat = setInterval(() => {
+    if (closed) return;
+    try {
+      res.write(': keep-alive\n\n');
+    } catch {
+      cleanup();
+    }
+  }, 15_000);
+
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(heartbeat);
+    clearInterval(pollTimer);
+    try {
+      watcher?.close();
+    } catch {
+      // ignore
+    }
+    try {
+      res.end();
+    } catch {
+      // ignore
+    }
+  };
+
+  req.on('close', cleanup);
+
+  // optionally send tail (last 64kb) unless freshOnly
+  if (!freshOnly) {
+    try {
+      if (stat.size > 0) {
+        const start = Math.max(0, stat.size - 64_000);
+        await new Promise<void>((resolve, reject) => {
+          const rs = fs.createReadStream(target, { start });
+          rs.on('data', sendChunk);
+          rs.on('error', reject);
+          rs.on('end', () => resolve());
+        });
+      }
+    } catch {
+      // ignore tail errors
+    }
+  }
+
+  const readDelta = async (nextStat: fs.Stats) => {
+    if (nextStat.size < lastSize) {
+      lastSize = nextStat.size;
+      res.write('event: info\ndata: log truncated\n\n');
+      return;
+    }
+    if (nextStat.size === lastSize) return;
+    const rs = fs.createReadStream(target, { start: lastSize, end: nextStat.size - 1 });
+    rs.on('data', sendChunk);
+    rs.on('error', () => {});
+    rs.on('end', () => {
+      lastSize = nextStat.size;
+    });
+  };
+
+  watcher = fs.watch(target, { persistent: true }, async event => {
+    if (closed) return;
+    if (event === 'rename') {
+      res.write('event: info\ndata: log rotated or removed\n\n');
+      cleanup();
+      return;
+    }
+    if (event !== 'change') return;
+    try {
+      const nextStat = await fsPromises.stat(target);
+      await readDelta(nextStat);
+    } catch (err) {
+      res.write(`event: error\ndata: ${String(err)}\n\n`);
+      cleanup();
+    }
+  });
+
+  pollTimer = setInterval(async () => {
+    if (closed) return;
+    try {
+      const nextStat = await fsPromises.stat(target);
+      await readDelta(nextStat);
+    } catch {
+      cleanup();
+    }
+  }, 2000);
 });
 
 app.get('/widgets/:type/widget.:ext', async (req: Request, res: Response) => {

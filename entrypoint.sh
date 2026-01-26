@@ -18,10 +18,10 @@ seedDirIfEmpty() {
 }
 
 # Ensure runtime dirs exist (these are volume mounts)
-mkdir -p /app/dashboards /app/widgets /app/themes /app/assets /app/jobs /app/logs
+mkdir -p /app/dashboards /app/widgets /app/themes /app/assets /app/jobs /app/logs /app/backups
 
 # Fix ownership so the node user can write into fresh volumes
-chown -R node:node /app/dashboards /app/widgets /app/themes /app/assets /app/jobs /app/logs || true
+chown -R node:node /app/dashboards /app/widgets /app/themes /app/assets /app/jobs /app/logs /app/backups || true
 
 # Seed only when empty
 seedDirIfEmpty /defaults/dashboards /app/dashboards
@@ -29,6 +29,7 @@ seedDirIfEmpty /defaults/widgets    /app/widgets
 seedDirIfEmpty /defaults/themes     /app/themes
 seedDirIfEmpty /defaults/assets     /app/assets
 seedDirIfEmpty /defaults/jobs       /app/jobs
+seedDirIfEmpty /defaults/backups    /app/backups
 
 # Optional sentinel for humans/debugging
 touch /app/.dashino-initialized || true

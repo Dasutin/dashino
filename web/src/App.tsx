@@ -1,5 +1,7 @@
-﻿import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+﻿import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import DeleteIcon from "@mui/icons-material/Delete";
+import DownloadIcon from "@mui/icons-material/Download";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EditIcon from "@mui/icons-material/Edit";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -37,6 +39,18 @@ const DEFAULT_WIDGET_TYPES = [
   "wispers"
 ];
 
+type BackupEntry = {
+  name: string;
+  size: number;
+  createdAt: string;
+};
+
+type LogEntry = {
+  name: string;
+  size: number;
+  modifiedAt: string;
+};
+
 const isValidSlug = (value: string) => /^[a-z0-9-]+$/.test(value);
 
 function App() {
@@ -62,6 +76,18 @@ function App() {
 
   const [rootTargetWidget, setRootTargetWidget] = useState("");
   const [rootMessage, setRootMessage] = useState("");
+  const [backups, setBackups] = useState<BackupEntry[]>([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [backupsError, setBackupsError] = useState<string | null>(null);
+  const [creatingBackup, setCreatingBackup] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
+  const [activeLog, setActiveLog] = useState<string | null>(null);
+  const [logStreamFresh, setLogStreamFresh] = useState(false);
+  const [logStream, setLogStream] = useState<string[]>([]);
+  const [logStreaming, setLogStreaming] = useState(false);
+  const [logStreamError, setLogStreamError] = useState<string | null>(null);
   const timeZone = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown";
@@ -80,7 +106,7 @@ function App() {
     ]
   ), [dashboards.length, playlists.length, timeZone]);
 
-  const supportTableRows = useMemo(() => (
+  const supportTableRows = useMemo<[string, ReactNode][]>(() => (
     [
       ["Documentation", <a href="https://github.com/Dasutin/dashino#readme" target="_blank" rel="noreferrer">GitHub README</a>],
       ["GitHub Issues", <a href="https://github.com/Dasutin/dashino/issues" target="_blank" rel="noreferrer">Issue Tracker</a>]
@@ -94,7 +120,7 @@ function App() {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
 
-  const [settingsTab, setSettingsTab] = useState<"backup" | "tools" | "about">("backup");
+  const [settingsTab, setSettingsTab] = useState<"backup" | "logs" | "tools" | "about">("backup");
 
   const widgetChoices = useMemo(() => {
     const discovered = dashboards.flatMap(d => d.widgets.map(w => w.type));
@@ -155,7 +181,42 @@ function App() {
     return raw.replace(/\/$/, "");
   }, []);
 
-  const backupUrl = useMemo(() => `${apiOrigin}/api/backup.zip`, [apiOrigin]);
+  const loadBackups = useCallback(async () => {
+    setBackupsLoading(true);
+    setBackupsError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/backups`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      const body = await res.json();
+      setBackups(body.backups ?? []);
+    } catch (err) {
+      setBackupsError("Failed to load backups");
+      console.error(err);
+    } finally {
+      setBackupsLoading(false);
+    }
+  }, [apiOrigin]);
+
+  const loadLogs = useCallback(async () => {
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/logs`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      const body = await res.json();
+      setLogs(body.logs ?? []);
+    } catch (err) {
+      setLogsError("Failed to load logs");
+      console.error(err);
+    } finally {
+      setLogsLoading(false);
+    }
+  }, [apiOrigin]);
+
+  const resetLogStream = useCallback(() => {
+    setLogStream([]);
+    setLogStreamError(null);
+  }, []);
 
   const currentDashboard = useMemo(() => {
     if (!selectedSlug) return undefined;
@@ -237,6 +298,61 @@ function App() {
   useEffect(() => {
     fetchPlaylists().catch(err => console.error("Failed to load playlists", err));
   }, [fetchPlaylists]);
+
+  useEffect(() => {
+    if (!isBackupsPage) return;
+    if (settingsTab === "backup") {
+      loadBackups().catch(err => console.error("Failed to load backups", err));
+    } else if (settingsTab === "logs") {
+      loadLogs().catch(err => console.error("Failed to load logs", err));
+    }
+  }, [isBackupsPage, loadBackups, loadLogs, settingsTab]);
+
+  useEffect(() => {
+    if (!activeLog) return;
+    const exists = logs.some(l => l.name === activeLog && l.name.toLowerCase().endsWith('.log'));
+    if (!exists) {
+      setActiveLog(null);
+      resetLogStream();
+      setLogStreamFresh(false);
+    }
+  }, [activeLog, logs, resetLogStream]);
+
+  useEffect(() => {
+    if (!activeLog || !activeLog.toLowerCase().endsWith('.log')) return;
+    resetLogStream();
+    const freshParam = logStreamFresh ? '?fresh=1' : '';
+    const es = new EventSource(`${apiOrigin}/api/logs/${encodeURIComponent(activeLog)}/stream${freshParam}`);
+    let closed = false;
+    setLogStreaming(true);
+    es.onopen = () => {
+      if (closed) return;
+      setLogStreamError(null);
+      setLogStreaming(true);
+    };
+    es.onmessage = evt => {
+      if (closed) return;
+      const lines = (evt.data || "").split("\n");
+      setLogStream(prev => {
+        const next = [...prev, ...lines];
+        if (next.length > 500) {
+          return next.slice(next.length - 500);
+        }
+        return next;
+      });
+    };
+    es.onerror = () => {
+      if (closed) return;
+      setLogStreamError("Disconnected from log stream");
+      setLogStreaming(false);
+    };
+
+    return () => {
+      closed = true;
+      setLogStreaming(false);
+      es.close();
+    };
+  }, [activeLog, apiOrigin, logStreamFresh, resetLogStream]);
 
   useEffect(() => {
     if (pathSlug === null || pathSlug === "") {
@@ -665,6 +781,53 @@ function App() {
     navigateTo(BACKUPS_ROUTE);
   };
 
+  const handleCreateBackup = async () => {
+    setCreatingBackup(true);
+    setBackupsError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/backups`, { method: "POST" });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      await loadBackups();
+    } catch (err) {
+      setBackupsError("Failed to create backup");
+      console.error(err);
+    } finally {
+      setCreatingBackup(false);
+    }
+  };
+
+  const handleDeleteBackup = async (name: string) => {
+    setBackupsError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/backups/${encodeURIComponent(name)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      await loadBackups();
+    } catch (err) {
+      setBackupsError("Failed to delete backup");
+      console.error(err);
+    }
+  };
+
+  const handleDownloadBackup = (name: string) => {
+    window.location.href = `${apiOrigin}/api/backups/${encodeURIComponent(name)}`;
+  };
+
+  const handleDeleteLog = async (name: string) => {
+    setLogsError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/logs/${encodeURIComponent(name)}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`Status ${res.status}`);
+      await loadLogs();
+    } catch (err) {
+      setLogsError("Failed to delete log");
+      console.error(err);
+    }
+  };
+
+  const handleDownloadLog = (name: string) => {
+    window.location.href = `${apiOrigin}/api/logs/${encodeURIComponent(name)}`;
+  };
+
   const handleEditPlaylist = (playlist: Playlist) => {
     setEditingSlug(playlist.slug);
     setEditorName(playlist.name);
@@ -788,6 +951,20 @@ function App() {
 
   const playlistSlugValue = slugTouched ? editorSlug : editorSlug || slugify(editorName, "");
 
+  const formatBytes = (value: number) => {
+    if (!Number.isFinite(value)) return "-";
+    if (value < 1024) return `${value} B`;
+    const mb = value / (1024 * 1024);
+    if (mb < 1) return `${(value / 1024).toFixed(1)} KB`;
+    return `${mb.toFixed(1)} MB`;
+  };
+
+  const formatDate = (value: string) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString();
+  };
+
   if (activePlaylistSlug) {
     return (
       <div className="dashboard">
@@ -840,7 +1017,8 @@ function App() {
               <h3>Settings</h3>
             </div>
             <div className="tab-row">
-              <button className={`tab ${settingsTab === "backup" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("backup")}>Backup</button>
+              <button className={`tab ${settingsTab === "backup" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("backup")}>Backups</button>
+              <button className={`tab ${settingsTab === "logs" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("logs")}>Logs</button>
               <button className={`tab ${settingsTab === "tools" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("tools")}>Tools</button>
               <button className={`tab ${settingsTab === "about" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("about")}>About</button>
             </div>
@@ -849,14 +1027,123 @@ function App() {
                 <div className="tab-panel">
                   <p className="muted" style={{ marginBottom: 8 }}>Download a snapshot of dashboards, widgets, themes, jobs, and playlists.</p>
                   <div className="panel-actions" style={{ marginTop: 6 }}>
-                    <button
-                      onClick={() => {
-                        window.location.href = backupUrl;
-                      }}
-                    >
-                      Create backup
+                    <button onClick={handleCreateBackup} disabled={creatingBackup}>
+                      {creatingBackup ? "Creating..." : "Create backup"}
                     </button>
                   </div>
+                  {backupsError ? <p className="error-text" style={{ marginTop: 10 }}>{backupsError}</p> : null}
+                  {backupsLoading ? <p className="muted" style={{ marginTop: 10 }}>Loading backups...</p> : null}
+                  {!backupsLoading && backups.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No backups yet.</p> : null}
+                  {!backupsLoading && backups.length > 0 ? (
+                    <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                      {backups.map(b => (
+                        <div key={b.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: "var(--control-bg)" }}>
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{b.name}</div>
+                            <div className="muted" style={{ fontSize: 12 }}>
+                              {formatBytes(b.size)} • {formatDate(b.createdAt)}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              onClick={() => handleDownloadBackup(b.name)}
+                              aria-label="Download backup"
+                              title="Download backup"
+                            >
+                              <DownloadIcon fontSize="small" />
+                            </button>
+                            <button
+                              className="danger"
+                              onClick={() => handleDeleteBackup(b.name)}
+                              aria-label="Delete backup"
+                              title="Delete backup"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {settingsTab === "logs" ? (
+                <div className="tab-panel">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <p className="muted" style={{ marginBottom: 8, marginTop: 0 }}>Review and download server logs stored on this instance.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newest = logs.find(l => l.name.toLowerCase().endsWith('.log'));
+                        if (newest) {
+                          setActiveLog(newest.name);
+                          setLogStreamFresh(true);
+                        }
+                      }}
+                      disabled={!logs.some(l => l.name.toLowerCase().endsWith('.log'))}
+                      aria-label="Stream newest log"
+                      title="Stream newest log"
+                    >
+                      Stream Logs
+                    </button>
+                  </div>
+                  {logsError ? <p className="error-text" style={{ marginTop: 10 }}>{logsError}</p> : null}
+                  {logsLoading ? <p className="muted" style={{ marginTop: 10 }}>Loading logs...</p> : null}
+                  {!logsLoading && logs.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No logs found.</p> : null}
+                  {!logsLoading && logs.length > 0 ? (
+                    <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                      {logs.map(log => (
+                        <div
+                          key={log.name}
+                          onClick={() => {
+                            if (log.name.toLowerCase().endsWith('.log')) {
+                              setActiveLog(log.name);
+                              setLogStreamFresh(false);
+                            }
+                          }}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: activeLog === log.name ? "var(--control-bg-strong, rgba(255,255,255,0.06))" : "var(--control-bg)", cursor: log.name.toLowerCase().endsWith('.log') ? "pointer" : "default" }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 600 }}>{log.name}</div>
+                            <div className="muted" style={{ fontSize: 12 }}>
+                              {formatBytes(log.size)} • {formatDate(log.modifiedAt)}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={e => { e.stopPropagation(); handleDownloadLog(log.name); }} aria-label="Download log" title="Download log">
+                              <DownloadIcon fontSize="small" />
+                            </button>
+                            <button className="danger" onClick={e => { e.stopPropagation(); handleDeleteLog(log.name); }} aria-label="Delete log" title="Delete log">
+                              <DeleteIcon fontSize="small" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {activeLog ? (
+                    <div className="panel" style={{ marginTop: 16 }}>
+                      <div className="panel-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: 16 }}>Live log: {activeLog}</h3>
+                          {logStreamFresh ? (
+                            <span className="muted">{logStreaming ? "Streaming…" : "Streaming paused"}</span>
+                          ) : null}
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button className="ghost" onClick={() => { setActiveLog(null); setLogStreamFresh(false); }}>Close</button>
+                        </div>
+                      </div>
+                      {logStreamError ? <p className="error-text" style={{ marginTop: 8 }}>{logStreamError}</p> : null}
+                      <div style={{ marginTop: 8, maxHeight: 320, overflow: "auto", background: "var(--control-bg)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 10, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, lineHeight: 1.45 }}>
+                        {logStream.length === 0 ? <span className="muted">Waiting for log data…</span> : null}
+                        {logStream.map((line, idx) => (
+                          <div key={idx} style={{ whiteSpace: "pre-wrap" }}>{line}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -930,6 +1217,7 @@ function App() {
                     </tbody>
                   </table>
                   <h2 style={{ margin: 0, marginTop: 28 }}>Support Dashino</h2>
+                  <p className="muted">Star the project on GitHub or open an issue if you run into trouble.</p>
                 </div>
               ) : null}
             </div>
