@@ -1238,7 +1238,7 @@ function App() {
           <header className="hero">
             <div>
               <h1>Dashino Stacks</h1>
-              <p>Rotate multiple widgets inside a single tile.</p>
+              <p>Rotate between multiple widgets.</p>
             </div>
             <div className="hero-actions">
               <button onClick={() => { resetStackForm(); setStackModalOpen(true); }}>New Stack</button>
@@ -1254,7 +1254,7 @@ function App() {
             {loadingStacks ? (
               <p className="muted">Loading stacks…</p>
             ) : stacks.length === 0 ? (
-              <p className="muted">No stacks yet. Create one to start rotating widgets inside a tile.</p>
+              <p className="muted">No stacks configured.</p>
             ) : (
               <div className="playlist-list">
                 {stacks.map(s => (
@@ -1265,7 +1265,7 @@ function App() {
                     </div>
                     <div className="playlist-actions">
                         <button onClick={() => {
-                          setStackEditingSlug(slug);
+                          setStackEditingSlug(s.slug);
                           setStackError(null);
                           setStackName(s.name || "");
                           setStackSlugInput(s.slug || "");
@@ -1304,7 +1304,7 @@ function App() {
                 </div>
                 <div className="modal-body">
                   <p>Are you sure you want to delete “{stackDeleteName || stackDeleteSlug}”?</p>
-                  <p className="muted">This only removes the stack file. Dashboards and widgets remain.</p>
+                  <p className="muted">This only removes the stack. Dashboards and widgets will remain.</p>
                   {stackDeleteError ? <p className="error-text" style={{ marginTop: 8 }}>{stackDeleteError}</p> : null}
                 </div>
                 <div className="modal-actions">
@@ -1453,7 +1453,7 @@ function App() {
           <header className="hero">
             <div>
               <h1>Settings</h1>
-              <p>Download backups and access utilities for your Dashino instance.</p>
+              <p>Create backups, view logs, and access utilities.</p>
             </div>
           </header>
 
@@ -1470,7 +1470,7 @@ function App() {
             <div className="tab-panels">
               {settingsTab === "backup" ? (
                 <div className="tab-panel">
-                  <p className="muted" style={{ marginBottom: 8 }}>Download a snapshot of dashboards, widgets, themes, jobs, and playlists.</p>
+                  <p className="muted" style={{ marginBottom: 8 }}>Create a backup of dashboards, widgets, themes, jobs, playlists, and stacks.</p>
                   <div className="panel-actions" style={{ marginTop: 6 }}>
                     <button onClick={handleCreateBackup} disabled={creatingBackup}>
                       {creatingBackup ? "Creating..." : "Create backup"}
@@ -1478,7 +1478,7 @@ function App() {
                   </div>
                   {backupsError ? <p className="error-text" style={{ marginTop: 10 }}>{backupsError}</p> : null}
                   {backupsLoading ? <p className="muted" style={{ marginTop: 10 }}>Loading backups...</p> : null}
-                  {!backupsLoading && backups.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No backups yet.</p> : null}
+                  {!backupsLoading && backups.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No backups made.</p> : null}
                   {!backupsLoading && backups.length > 0 ? (
                     <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
                       {backups.map(b => (
@@ -1516,7 +1516,7 @@ function App() {
               {settingsTab === "logs" ? (
                 <div className="tab-panel">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <p className="muted" style={{ marginBottom: 8, marginTop: 0 }}>Review and download server logs stored on this instance.</p>
+                    <p className="muted" style={{ marginBottom: 8, marginTop: 0 }}>Review and download server logs.</p>
                     <button
                       type="button"
                       onClick={() => {
@@ -1736,7 +1736,7 @@ function App() {
             {loadingPlaylists ? (
               <p className="muted">Loading playlists…</p>
             ) : playlists.length === 0 ? (
-              <p className="muted">No playlists yet. Create one to start rotating dashboards.</p>
+              <p className="muted">No playlists configured.</p>
             ) : (
               <div className="playlist-list">
                 {playlists.map(p => (
@@ -1778,7 +1778,7 @@ function App() {
                 </div>
                 <div className="modal-body">
                   <p>Are you sure you want to delete “{deletePlaylistName || deletePlaylistSlug}”?</p>
-                  <p className="muted">This only removes the playlist file. Dashboards will remain untouched.</p>
+                  <p className="muted">This only removes the playlist. Dashboards will remain untouched.</p>
                   {deletePlaylistError ? <p className="error-text" style={{ marginTop: 8 }}>{deletePlaylistError}</p> : null}
                 </div>
                 <div className="modal-actions">
@@ -1875,7 +1875,7 @@ function App() {
           <header className="hero">
             <div>
               <h1>Dashino Dashboards</h1>
-              <p>Beautiful, realtime dashboards for your home or fleet!</p>
+              <p>Beautiful, realtime dashboards for your home or office!</p>
               <p style={{ marginTop: 8, opacity: 0.85 }}>Choose a dashboard below to run</p>
             </div>
             <div className="hero-actions">
