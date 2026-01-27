@@ -109,6 +109,7 @@ function App() {
   const [logStream, setLogStream] = useState<string[]>([]);
   const [logStreaming, setLogStreaming] = useState(false);
   const [logStreamError, setLogStreamError] = useState<string | null>(null);
+  const [isDocker, setIsDocker] = useState<boolean | null>(null);
   const timeZone = useMemo(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || "Unknown";
@@ -123,9 +124,10 @@ function App() {
       ["Version", `v${APP_VERSION}`],
       ["Total Dashboards", String(dashboards.length)],
       ["Total Playlists", String(playlists.length)],
-      ["Time Zone", timeZone]
+      ["Time Zone", timeZone],
+      ["Running in Docker", isDocker === null ? "Unknown" : isDocker ? "Yes" : "No"]
     ]
-  ), [dashboards.length, playlists.length, timeZone]);
+  ), [dashboards.length, playlists.length, timeZone, isDocker]);
 
   const supportTableRows = useMemo<[string, ReactNode][]>(() => (
     [
@@ -221,6 +223,30 @@ function App() {
     if (!raw) return "";
     return raw.replace(/\/$/, "");
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadHealth() {
+      try {
+        const res = await fetch(`${apiOrigin}/api/health`, { cache: "no-store" });
+        const body = await res.json();
+        if (cancelled) return;
+        if (typeof body?.isDocker === "boolean") {
+          setIsDocker(body.isDocker);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setIsDocker(null);
+          console.error("Failed to load health", err);
+        }
+      }
+    }
+
+    loadHealth().catch(err => console.error("Failed to load health", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [apiOrigin]);
 
   const loadBackups = useCallback(async () => {
     setBackupsLoading(true);

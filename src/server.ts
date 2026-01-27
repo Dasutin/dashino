@@ -25,6 +25,27 @@ let logStream = fs.createWriteStream(logFilenameFor(), { flags: 'a' });
 const fsPromises = fs.promises;
 const cacheDisabled = Boolean(process.env.CACHE_DISABLE && /^(1|true|yes)$/i.test(process.env.CACHE_DISABLE));
 
+function isDockerRuntime() {
+  if (process.platform === 'win32') {
+    // Windows Docker Desktop won't expose /.dockerenv, so fall back to cgroup probe when possible
+    try {
+      const cgroup = fs.readFileSync('/proc/1/cgroup', 'utf8');
+      return cgroup.includes('docker') || cgroup.includes('kubepods');
+    } catch {
+      return false;
+    }
+  }
+
+  if (fs.existsSync('/.dockerenv')) return true;
+
+  try {
+    const cgroup = fs.readFileSync('/proc/1/cgroup', 'utf8');
+    return cgroup.includes('docker') || cgroup.includes('kubepods');
+  } catch {
+    return false;
+  }
+}
+
 const app = express();
 const port = process.env.PORT ? Number(process.env.PORT) : 4040;
 const jsonLimit = process.env.JSON_BODY_LIMIT || '256kb';
@@ -1197,9 +1218,9 @@ async function startJobs() {
   files.forEach(file => spawnJobProcess(file));
 }
 
-type Health = { status: string };
+type Health = { status: string; isDocker: boolean };
 app.get('/api/health', (_req: Request, res: Response<Health>) => {
-  res.json({ status: 'ok' });
+  res.json({ status: 'ok', isDocker: isDockerRuntime() });
 });
 
 type BackupMeta = { name: string; size: number; createdAt: string };
