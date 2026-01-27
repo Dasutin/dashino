@@ -8,7 +8,7 @@ COPY package*.json ./
 RUN npm ci
 
 FROM deps AS build
-RUN mkdir -p dashboards widgets themes assets jobs playlists backups logs
+RUN mkdir -p dashboards widgets themes assets jobs stacks playlists backups logs
 COPY . .
 RUN node scripts/sync-controllers.mjs
 RUN npm run build
@@ -26,6 +26,7 @@ COPY --from=build /app/widgets ./widgets
 COPY --from=build /app/themes ./themes
 COPY --from=build /app/assets ./assets
 COPY --from=build /app/jobs ./jobs
+COPY --from=build /app/stacks ./stacks
 COPY --from=build /app/playlists ./playlists
 COPY --from=build /app/backups ./backups
 COPY --from=build /app/logs ./logs
@@ -44,6 +45,7 @@ COPY --from=build /app/widgets    /defaults/widgets
 COPY --from=build /app/themes     /defaults/themes
 COPY --from=build /app/assets     /defaults/assets
 COPY --from=build /app/jobs       /defaults/jobs
+COPY --from=build /app/stacks     /defaults/stacks
 COPY --from=build /app/playlists  /defaults/playlists
 COPY --from=build /app/backups    /defaults/backups
 COPY --from=build /app/logs       /defaults/logs
@@ -51,9 +53,9 @@ COPY --from=build /app/logs       /defaults/logs
 # ---- NEW: entrypoint that seeds volumes on first run ----
 COPY entrypoint.sh /entrypoint.sh
 
-RUN mkdir -p dashboards widgets themes assets jobs playlists backups logs scripts \
+RUN mkdir -p dashboards widgets themes assets jobs stacks playlists backups logs scripts \
 	&& chown -R node:node /app \
-	&& chown -R node:node dashboards widgets themes assets jobs playlists backups logs dist scripts web src \
+	&& chown -R node:node dashboards widgets themes assets jobs stacks playlists backups logs dist scripts web src \
 	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json /app/start.sh /app/start-dev.sh \
 	&& touch .env && chown node:node .env \
 	&& chmod +x ./start.sh ./start-dev.sh /entrypoint.sh
@@ -61,7 +63,7 @@ RUN mkdir -p dashboards widgets themes assets jobs playlists backups logs script
 # IMPORTANT: run entrypoint as root so it can chown fresh volumes, then drop to node internally
 USER root
 
-VOLUME ["/app/assets","/app/dashboards","/app/jobs","/app/themes","/app/widgets","/app/playlists","/app/backups","/app/logs"]
+VOLUME ["/app/assets","/app/dashboards","/app/stacks","/app/jobs","/app/themes","/app/widgets","/app/playlists","/app/backups","/app/logs"]
 
 EXPOSE 4040 4173
 ENTRYPOINT ["/entrypoint.sh"]
@@ -80,6 +82,7 @@ COPY --from=build /app/widgets ./widgets
 COPY --from=build /app/themes ./themes
 COPY --from=build /app/assets ./assets
 COPY --from=build /app/jobs ./jobs
+COPY --from=build /app/stacks ./stacks
 COPY --from=build /app/playlists ./playlists
 COPY --from=build /app/backups ./backups
 COPY --from=build /app/logs ./logs
@@ -97,6 +100,7 @@ COPY --from=build /app/widgets    /defaults/widgets
 COPY --from=build /app/themes     /defaults/themes
 COPY --from=build /app/assets     /defaults/assets
 COPY --from=build /app/jobs       /defaults/jobs
+COPY --from=build /app/stacks     /defaults/stacks
 COPY --from=build /app/playlists  /defaults/playlists
 COPY --from=build /app/backups    /defaults/backups
 COPY --from=build /app/logs       /defaults/logs
@@ -105,10 +109,10 @@ COPY --from=build /app/logs       /defaults/logs
 COPY entrypoint.sh /entrypoint.sh
 
 # Make runtime content writable; users can bind mount these to override.
-RUN mkdir -p dashboards widgets themes assets jobs playlists backups logs \
+RUN mkdir -p dashboards widgets themes assets jobs stacks playlists backups logs \
 	&& mkdir -p scripts \
 	&& chown -R node:node /app \
-	&& chown -R node:node dashboards widgets themes assets jobs playlists backups logs dist scripts web src \
+	&& chown -R node:node dashboards widgets themes assets jobs stacks playlists backups logs dist scripts web src \
 	&& chown -R node:node /app/vite.config.ts /app/tsconfig.json /app/package.json /app/package-lock.json /app/start.sh \
 	&& touch .env && chown node:node .env \
 	&& chmod +x ./start.sh /entrypoint.sh
@@ -116,7 +120,7 @@ RUN mkdir -p dashboards widgets themes assets jobs playlists backups logs \
 # IMPORTANT: run entrypoint as root so it can chown fresh volumes, then drop to node internally
 USER root
 
-VOLUME ["/app/assets","/app/dashboards","/app/jobs","/app/themes","/app/widgets","/app/playlists","/app/backups","/app/logs"]
+VOLUME ["/app/assets","/app/dashboards","/app/stacks","/app/jobs","/app/themes","/app/widgets","/app/playlists","/app/backups","/app/logs"]
 
 EXPOSE 4040
 ENTRYPOINT ["/entrypoint.sh"]
