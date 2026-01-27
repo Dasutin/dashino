@@ -19,6 +19,7 @@ Dashino is the spiritual successor to Dashing and Smashing.
 docker run -d --name dashino \
  -p 4040:4040 \
  -v ./dashboards:/app/dashboards \
+ -v ./stacks:/app/stacks \
  -v ./widgets:/app/widgets \
  -v ./themes:/app/themes \
  -v ./jobs:/app/jobs \
@@ -67,12 +68,19 @@ docker run -d --name dashino \
 
 - `dashboards/`: JSON definitions for each dashboard (layout, widget placements).
 - `themes/`: CSS stylesheets for each dashboard.
+- `stacks/`: JSON definitions grouping child widgets so a `stack` widget can rotate through them.
 - `widgets/<name>/`: Each widget has `widget.html`, `widget.css`, and `widget.ts` (placeholder) used by the client to render.
 - `jobs/`: Scheduled jobs (`*.js`) to send events targeted at widget IDs.
 - `playlists/`: Automatically rotate a set of dashboards.
 - `assets/`: Images or icons for use with widgets.
 - `logs/`: The log folder.
 - `.env`: File for environment variables and secrets.
+
+## Stacks
+
+- Create a stack JSON in `stacks/<slug>.json` (see `stacks/demo-stack.json`). Fields: `slug`, `name`, optional `intervalMs` (ms between rotations), optional `mode` (`cycle` or `random`), and `widgets` array with `{ id, type, title? }`.
+- Use a `stack` widget placement in a dashboard: `{ "id": "stack-1", "type": "stack", "stack": { "slug": "demo-stack", "overrideIntervalMs": 10000, "mode": "cycle" }, "position": { ... } }`.
+- The stack widget rotates through the child widgets, fetching each child widget's template and controller. SSE events for the child widget IDs are forwarded to whichever child is active.
 
 ## Events
 
@@ -153,6 +161,8 @@ curl -X POST http://localhost:4040/api/webhooks/github \
 - `POST /api/webhooks/:source`: Validates `X-Webhook-Secret` and broadcasts the JSON body (or `body.data`) to the configured widget/type for that source.
 - `GET /api/health`: Basic readiness endpoint.
 - `GET /api/dashboards`: Returns available dashboards and layout metadata.
+- `GET /api/stacks`: List stacks; `GET /api/stacks/:slug`: fetch a stack; `POST /api/stacks`: create; `PUT /api/stacks/:slug`: update; `DELETE /api/stacks/:slug`: delete.
+- `GET /stacks/:slug.json`: Static stack file access (served from `stacks/`).
 
 ## License
 

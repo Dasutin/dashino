@@ -3,15 +3,18 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import StorageIcon from "@mui/icons-material/Storage";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import PlaylistIcon from "@mui/icons-material/QueueMusic";
+import LayersIcon from "@mui/icons-material/Layers";
 
 export type SidebarNavProps = {
   isHomeActive?: boolean;
   isPlaylistManagerActive?: boolean;
+  isStacksActive?: boolean;
   isBackupsActive?: boolean;
   buildLabel?: string;
   version?: string;
   onSelectHome: () => void;
   onOpenPlaylistManager: () => void;
+  onOpenStacks: () => void;
   onOpenBackups: () => void;
   onOpenAbout?: () => void;
 };
@@ -19,11 +22,13 @@ export type SidebarNavProps = {
 function SidebarNav({
   isHomeActive,
   isPlaylistManagerActive,
+  isStacksActive,
   isBackupsActive,
   buildLabel = "dev",
   version = "0.0.0",
   onSelectHome,
   onOpenPlaylistManager,
+  onOpenStacks,
   onOpenBackups,
   onOpenAbout,
 }: SidebarNavProps) {
@@ -44,6 +49,13 @@ function SidebarNav({
         >
           <PlaylistIcon className="sidebar-icon" />
           <span>Playlists</span>
+        </button>
+        <button
+          className={`sidebar-item ${isStacksActive ? "active" : ""}`}
+          onClick={onOpenStacks}
+        >
+          <LayersIcon className="sidebar-icon" />
+          <span>Stacks</span>
         </button>
         <button
           className={`sidebar-item ${isBackupsActive ? "active" : ""}`}

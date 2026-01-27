@@ -8,7 +8,7 @@ import ClearIcon from "@mui/icons-material/Clear";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import StorageIcon from "@mui/icons-material/Storage";
-import type { Dashboard, Playlist } from "./types";
+import type { Dashboard, Playlist, StackDefinition } from "./types";
 import SidebarNav from "./components/SidebarNav";
 import PlaylistEditor from "./components/PlaylistEditor";
 import slugify from "./utils/slugify";
@@ -19,6 +19,7 @@ const PlaylistView = lazy(() => import("./PlaylistView"));
 
 type Appearance = "light" | "dark";
 const PLAYLISTS_ROUTE = "playlists";
+const STACKS_ROUTE = "stacks";
 const BACKUPS_ROUTE = "settings";
 const APP_VERSION = "0.1.0";
 
@@ -31,6 +32,7 @@ const DEFAULT_WIDGET_TYPES = [
   "hourly",
   "message",
   "metric",
+  "stack",
   "nest",
   "radar",
   "roomtemp",
@@ -44,6 +46,11 @@ type BackupEntry = {
   name: string;
   size: number;
   createdAt: string;
+};
+
+type WidgetDraft = {
+  type: string;
+  stackSlug?: string;
 };
 
 type LogEntry = {
@@ -65,6 +72,11 @@ function App() {
   const [playlistsLoaded, setPlaylistsLoaded] = useState(false);
   const [playlistsError, setPlaylistsError] = useState<string | null>(null);
 
+  const [stacks, setStacks] = useState<StackDefinition[]>([]);
+  const [loadingStacks, setLoadingStacks] = useState(true);
+  const [stacksLoaded, setStacksLoaded] = useState(false);
+  const [stacksError, setStacksError] = useState<string | null>(null);
+
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [activePlaylistSlug, setActivePlaylistSlug] = useState<string | null>(null);
   const [pathSlug, setPathSlug] = useState<string | null>(() => {
@@ -73,6 +85,7 @@ function App() {
   });
   const [notFound, setNotFound] = useState(false);
   const isPlaylistManager = pathSlug === PLAYLISTS_ROUTE;
+  const isStacksPage = pathSlug === STACKS_ROUTE;
   const isBackupsPage = pathSlug === BACKUPS_ROUTE;
 
   const [rootTargetWidget, setRootTargetWidget] = useState("");
@@ -146,6 +159,22 @@ function App() {
   const [deletePlaylistError, setDeletePlaylistError] = useState<string | null>(null);
   const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
 
+  const [stackModalOpen, setStackModalOpen] = useState(false);
+  const [stackName, setStackName] = useState("");
+  const [stackSlugInput, setStackSlugInput] = useState("");
+  const [stackSlugTouched, setStackSlugTouched] = useState(false);
+  const [stackInterval, setStackInterval] = useState(15000);
+  const [stackMode, setStackMode] = useState("cycle");
+  const [stackSaving, setStackSaving] = useState(false);
+  const [stackError, setStackError] = useState<string | null>(null);
+  const [stackDeleteSlug, setStackDeleteSlug] = useState<string | null>(null);
+  const [stackDeleteName, setStackDeleteName] = useState("");
+  const [stackDeleting, setStackDeleting] = useState(false);
+  const [stackDeleteError, setStackDeleteError] = useState<string | null>(null);
+  const [stackWidgets, setStackWidgets] = useState<StackDefinition["widgets"]>([]);
+  const [stackWidgetSelect, setStackWidgetSelect] = useState("");
+  const [stackEditingSlug, setStackEditingSlug] = useState<string | null>(null);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createShortname, setCreateShortname] = useState("");
@@ -154,7 +183,7 @@ function App() {
   const [createTheme, setCreateTheme] = useState("main");
   const [createRows, setCreateRows] = useState("6");
   const [createColumns, setCreateColumns] = useState("12");
-  const [createWidgets, setCreateWidgets] = useState<string[]>([]);
+  const [createWidgets, setCreateWidgets] = useState<WidgetDraft[]>([]);
   const [createWidgetSelect, setCreateWidgetSelect] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [creatingDashboard, setCreatingDashboard] = useState(false);
@@ -304,6 +333,29 @@ function App() {
     fetchPlaylists().catch(err => console.error("Failed to load playlists", err));
   }, [fetchPlaylists]);
 
+  const fetchStacks = useMemo(() => {
+    return async () => {
+      setLoadingStacks(true);
+      setStacksError(null);
+      try {
+        const res = await fetch(`${apiOrigin}/api/stacks`, { cache: "no-store" });
+        const body = await res.json();
+        setStacks(body.stacks ?? []);
+        setStacksLoaded(true);
+      } catch (err) {
+        setStacksError("Failed to load stacks");
+        setStacksLoaded(true);
+        console.error("Failed to load stacks", err);
+      } finally {
+        setLoadingStacks(false);
+      }
+    };
+  }, [apiOrigin]);
+
+  useEffect(() => {
+    fetchStacks().catch(err => console.error("Failed to load stacks", err));
+  }, [fetchStacks]);
+
   useEffect(() => {
     if (!isBackupsPage) return;
     if (settingsTab === "backup") {
@@ -374,6 +426,13 @@ function App() {
       return;
     }
 
+    if (pathSlug === STACKS_ROUTE) {
+      setSelectedSlug(null);
+      setActivePlaylistSlug(null);
+      setNotFound(false);
+      return;
+    }
+
     if (pathSlug === BACKUPS_ROUTE) {
       setSelectedSlug(null);
       setActivePlaylistSlug(null);
@@ -397,12 +456,12 @@ function App() {
       return;
     }
 
-    if (dashboardsLoaded && playlistsLoaded) {
+    if (dashboardsLoaded && playlistsLoaded && stacksLoaded) {
       setNotFound(true);
       setSelectedSlug(null);
       setActivePlaylistSlug(null);
     }
-  }, [dashboards, dashboardsLoaded, pathSlug, playlists, playlistsLoaded]);
+  }, [dashboards, dashboardsLoaded, pathSlug, playlists, playlistsLoaded, stacksLoaded]);
 
   const sendDemoEvent = async (widgetId?: string, rawMessage?: string) => {
     const targetId = widgetId || currentDashboard?.widgets[0]?.id;
@@ -577,7 +636,8 @@ function App() {
       if (Number.isFinite(pos.h)) position.h = Number(pos.h);
       if (Number.isFinite(pos.x)) position.x = Number(pos.x);
       if (Number.isFinite(pos.y)) position.y = Number(pos.y);
-      return { id, type, position } as Dashboard["widgets"][number];
+      const stackSlug = w.stack?.slug ? slugify(w.stack.slug, w.stack.slug) : undefined;
+      return { id, type, position, stack: stackSlug ? { slug: stackSlug } : undefined } as Dashboard["widgets"][number];
     });
 
     setUpdatingDashboard(true);
@@ -616,8 +676,17 @@ function App() {
   };
 
   const handleAddWidget = () => {
-    const type = slugify(createWidgetSelect.trim(), createWidgetSelect.trim());
+    const raw = createWidgetSelect.trim();
+    if (!raw) return;
+    let stackSlug: string | undefined;
+    let typeValue = raw;
+    if (raw.startsWith("stack:")) {
+      stackSlug = slugify(raw.slice(6), raw.slice(6));
+      typeValue = "stack";
+    }
+    const type = slugify(typeValue, typeValue);
     if (!type) return;
+    if (stackSlug === "") stackSlug = undefined;
     const rows = Math.max(1, Number(createRows) || 0);
     const cols = Math.max(1, Number(createColumns) || 0);
     const maxSlots = rows * cols;
@@ -626,7 +695,7 @@ function App() {
       return;
     }
     setCreateError(null);
-    setCreateWidgets(prev => [...prev, type]);
+    setCreateWidgets(prev => [...prev, { type, stackSlug }]);
     setCreateWidgetSelect("");
   };
 
@@ -635,7 +704,15 @@ function App() {
   };
 
   const handleAddEditWidget = () => {
-    const type = slugify(editWidgetSelect.trim(), editWidgetSelect.trim());
+    const raw = editWidgetSelect.trim();
+    if (!raw) return;
+    let stackSlug: string | undefined;
+    let typeValue = raw;
+    if (raw.startsWith("stack:")) {
+      stackSlug = slugify(raw.slice(6), raw.slice(6));
+      typeValue = "stack";
+    }
+    const type = slugify(typeValue, typeValue);
     if (!type) return;
 
     setEditError(null);
@@ -656,7 +733,12 @@ function App() {
         nextId = `${type}-${attempt}`;
       }
 
-      const nextWidget = { id: nextId, type, position: { w: 1, h: 1 } } as Dashboard["widgets"][number];
+      const nextWidget = {
+        id: nextId,
+        type,
+        position: { w: 1, h: 1 },
+        stack: stackSlug ? { slug: stackSlug } : undefined
+      } as Dashboard["widgets"][number];
       return [...prev, nextWidget];
     });
 
@@ -685,15 +767,17 @@ function App() {
     }
 
     const counts: Record<string, number> = {};
-    const widgetsPayload = createWidgets.slice(0, maxSlots).map(rawType => {
-      const type = slugify(rawType, rawType);
+    const widgetsPayload = createWidgets.slice(0, maxSlots).map(entry => {
+      const type = slugify(entry.type, entry.type);
       if (!type) return null;
+      const stackSlug = entry.stackSlug ? slugify(entry.stackSlug, entry.stackSlug) : undefined;
       counts[type] = (counts[type] ?? 0) + 1;
       const id = counts[type] === 1 ? type : `${type}-${counts[type]}`;
       return {
         id,
         type,
-        position: { w: 1, h: 1 }
+        position: { w: 1, h: 1 },
+        stack: stackSlug ? { slug: stackSlug } : undefined
       };
     }).filter(Boolean) as Dashboard["widgets"];
 
@@ -779,6 +863,13 @@ function App() {
     navigateTo(PLAYLISTS_ROUTE);
   };
 
+  const handleOpenStacks = () => {
+    setSelectedSlug(null);
+    setActivePlaylistSlug(null);
+    setNotFound(false);
+    navigateTo(STACKS_ROUTE);
+  };
+
   const handleOpenBackups = () => {
     setSelectedSlug(null);
     setActivePlaylistSlug(null);
@@ -837,6 +928,129 @@ function App() {
   const handleDownloadLog = (name: string) => {
     window.location.href = `${apiOrigin}/api/logs/${encodeURIComponent(name)}`;
   };
+
+  const resetStackForm = () => {
+    setStackName("");
+    setStackSlugInput("");
+    setStackSlugTouched(false);
+    setStackInterval(15000);
+    setStackMode("cycle");
+    setStackError(null);
+    setStackWidgets([]);
+    setStackWidgetSelect("");
+    setStackEditingSlug(null);
+  };
+
+  const openDeleteStack = (slug: string, name: string) => {
+    setStackDeleteSlug(slug);
+    setStackDeleteName(name || slug);
+    setStackDeleteError(null);
+  };
+
+  const resetDeleteStackState = () => {
+    setStackDeleteSlug(null);
+    setStackDeleteName("");
+    setStackDeleteError(null);
+    setStackDeleting(false);
+  };
+
+  const stackSlugValue = stackSlugTouched ? stackSlugInput : stackSlugInput || slugify(stackName, "");
+
+  const handleSaveStack = async () => {
+    const name = stackName.trim();
+    const slug = (stackSlugValue || slugify(stackName, "")).trim();
+    const intervalMsRaw = Number(stackInterval);
+    const intervalMs = Number.isFinite(intervalMsRaw) ? Math.max(500, intervalMsRaw) : 15000;
+    const mode = (stackMode || "cycle").trim() || "cycle";
+    const widgetsPayload = stackWidgets.map((w, idx) => {
+      const type = slugify(w.type, w.type);
+      if (!type) return null;
+      const id = w.id && w.id.trim().length > 0 ? w.id.trim() : `${type}-${idx + 1}`;
+      return { id, type, title: w.title || w.id || w.type };
+    }).filter(Boolean) as StackDefinition["widgets"];
+
+    if (!name) {
+      setStackError("Name is required");
+      return;
+    }
+
+    if (!slug || !isValidSlug(slug)) {
+      setStackError("Slug must contain only lowercase letters, numbers, and dashes");
+      return;
+    }
+
+    if (widgetsPayload.length === 0) {
+      setStackError("Add at least one widget to the stack");
+      return;
+    }
+
+    setStackSaving(true);
+    setStackError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/stacks/${encodeURIComponent(stackEditingSlug || slug)}`, {
+        method: stackEditingSlug ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, slug: stackEditingSlug || slug, intervalMs, mode, widgets: widgetsPayload })
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed with status ${res.status}`);
+      }
+
+      await fetchStacks();
+      setStackModalOpen(false);
+      resetStackForm();
+    } catch (err) {
+      setStackError(err instanceof Error ? err.message : "Failed to save stack");
+    } finally {
+      setStackSaving(false);
+    }
+  };
+
+  const handleDeleteStack = async () => {
+    if (!stackDeleteSlug) return;
+    setStackDeleting(true);
+    setStackDeleteError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/stacks/${stackDeleteSlug}`, { method: "DELETE" });
+      if (!res.ok && res.status !== 404) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed with status ${res.status}`);
+      }
+      await fetchStacks();
+      resetDeleteStackState();
+    } catch (err) {
+      setStackDeleteError(err instanceof Error ? err.message : "Failed to delete stack");
+    } finally {
+      setStackDeleting(false);
+    }
+  };
+
+    const handleAddStackWidget = () => {
+      const type = slugify(stackWidgetSelect.trim(), stackWidgetSelect.trim());
+      if (!type) return;
+      setStackError(null);
+      setStackWidgets(prev => {
+        const counts: Record<string, number> = {};
+        const ids = new Set(prev.map(w => w.id));
+        prev.forEach(w => {
+          counts[w.type] = (counts[w.type] ?? 0) + 1;
+        });
+        let attempt = (counts[type] ?? 0) + 1;
+        let candidate = attempt === 1 ? type : `${type}-${attempt}`;
+        while (ids.has(candidate)) {
+          attempt += 1;
+          candidate = `${type}-${attempt}`;
+        }
+        return [...prev, { id: candidate, type, title: type }];
+      });
+      setStackWidgetSelect("");
+    };
+
+    const handleRemoveStackWidget = (index: number) => {
+      setStackWidgets(prev => prev.filter((_, i) => i !== index));
+    };
 
   const handleEditPlaylist = (playlist: Playlist) => {
     setEditingSlug(playlist.slug);
@@ -996,17 +1210,234 @@ function App() {
   }
 
 
+  if (isStacksPage) {
+    return (
+      <div className="landing-shell">
+        <SidebarNav
+          isHomeActive={false}
+          isPlaylistManagerActive={false}
+          isStacksActive
+          isBackupsActive={false}
+          buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+          version={APP_VERSION.replace(/^v/i, "")}
+          onSelectHome={handleGoHome}
+          onOpenPlaylistManager={handleOpenPlaylistManager}
+          onOpenStacks={handleOpenStacks}
+          onOpenBackups={handleOpenBackups}
+          onOpenAbout={handleOpenAbout}
+        />
+
+        <main className="landing landing-main">
+          <div className="top-bar">
+            <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
+              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+            </button>
+          </div>
+
+          <header className="hero">
+            <div>
+              <h1>Dashino Stacks</h1>
+              <p>Rotate multiple widgets inside a single tile.</p>
+            </div>
+            <div className="hero-actions">
+              <button onClick={() => { resetStackForm(); setStackModalOpen(true); }}>New Stack</button>
+            </div>
+          </header>
+
+          {stacksError ? <p className="error-text">{stacksError}</p> : null}
+
+          <section className="panel">
+            <div className="panel-header">
+              <h3>Stacks</h3>
+            </div>
+            {loadingStacks ? (
+              <p className="muted">Loading stacks…</p>
+            ) : stacks.length === 0 ? (
+              <p className="muted">No stacks yet. Create one to start rotating widgets inside a tile.</p>
+            ) : (
+              <div className="playlist-list">
+                {stacks.map(s => (
+                  <div key={s.slug} className="playlist-row">
+                    <div>
+                      <div className="playlist-name">{s.name}</div>
+                      <div className="playlist-meta">{(s.widgets?.length ?? 0)} widgets · {(s.intervalMs ?? 15000)}ms · {(s.mode ?? "cycle")}</div>
+                    </div>
+                    <div className="playlist-actions">
+                        <button onClick={() => {
+                          setStackEditingSlug(s.slug);
+                        setStackError(null);
+                          setStackName(s.name || "");
+                          setStackSlugInput(s.slug || "");
+                          setStackSlugTouched(true);
+                          setStackInterval(s.intervalMs ?? 15000);
+                          setStackMode(s.mode ?? "cycle");
+                          setStackWidgets((s.widgets ?? []).map((w, idx) => ({
+                            id: w.id || `${w.type}-${idx + 1}`,
+                            type: w.type,
+                            title: w.title || w.id || w.type
+                          })));
+                        setStackWidgetSelect("");
+                          setStackModalOpen(true);
+                        }} aria-label={`Edit ${s.name}`}>
+                          <EditIcon fontSize="small" />
+                        </button>
+                      <button
+                        className="danger icon"
+                        onClick={() => openDeleteStack(s.slug, s.name)}
+                        aria-label={`Delete ${s.name}`}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {stackDeleteSlug ? (
+            <div className="modal-backdrop" role="dialog" aria-modal="true">
+              <div className="modal">
+                <div className="modal-header">
+                  <h3>Delete Stack</h3>
+                </div>
+                <div className="modal-body">
+                  <p>Are you sure you want to delete “{stackDeleteName || stackDeleteSlug}”?</p>
+                  <p className="muted">This only removes the stack file. Dashboards and widgets remain.</p>
+                  {stackDeleteError ? <p className="error-text" style={{ marginTop: 8 }}>{stackDeleteError}</p> : null}
+                </div>
+                <div className="modal-actions">
+                  <button className="ghost" disabled={stackDeleting} onClick={resetDeleteStackState}>Cancel</button>
+                  <button className="danger" disabled={stackDeleting} onClick={handleDeleteStack}>
+                    {stackDeleting ? "Deleting…" : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {stackModalOpen ? (
+            <div className="modal-backdrop" role="dialog" aria-modal="true">
+              <div className="modal">
+                <div className="modal-header">
+                  <h3>{stackEditingSlug ? "Edit Stack" : "New Stack"}</h3>
+                </div>
+                <div className="modal-body modal-grid">
+                  <label>
+                    Name
+                    <input
+                      type="text"
+                      value={stackName}
+                      onChange={e => {
+                        setStackName(e.target.value);
+                        if (!stackSlugTouched) {
+                          setStackSlugInput(slugify(e.target.value, ""));
+                        }
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Slug (optional)
+                    <input
+                      type="text"
+                      value={stackSlugValue}
+                      disabled={Boolean(stackEditingSlug)}
+                      onChange={e => {
+                        setStackSlugTouched(true);
+                        setStackSlugInput(slugify(e.target.value, ""));
+                      }}
+                    />
+                  </label>
+                  <label>
+                    Interval (ms)
+                    <input
+                      type="number"
+                      min={500}
+                      value={stackInterval}
+                      onChange={e => setStackInterval(Number(e.target.value) || 0)}
+                    />
+                  </label>
+                  <label>
+                    Mode
+                    <input
+                      type="text"
+                      value={stackMode}
+                      onChange={e => setStackMode(e.target.value)}
+                      placeholder="cycle"
+                    />
+                  </label>
+                  <div className="full-row">
+                    <label>
+                      Add widgets
+                      <div className="widget-picker">
+                        <select
+                          value={stackWidgetSelect}
+                          onChange={e => setStackWidgetSelect(e.target.value)}
+                        >
+                          <option value="">Select a widget type</option>
+                          {widgetChoices.map(type => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                        <button type="button" onClick={handleAddStackWidget} disabled={!stackWidgetSelect}>
+                          Add
+                        </button>
+                      </div>
+                    </label>
+                    {stackWidgets.length > 0 ? (
+                      <div className="chip-row">
+                        {stackWidgets.map((w, idx) => (
+                          <span key={`${w.id}-${idx}`} className="chip">
+                            {w.type} <span className="muted">({w.id})</span>
+                            <button type="button" onClick={() => handleRemoveStackWidget(idx)} aria-label={`Remove ${w.type}`}>
+                              <ClearIcon fontSize="small" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted" style={{ margin: "6px 0 0" }}>No widgets selected</p>
+                    )}
+                  </div>
+                </div>
+                {stackError ? <p className="error-text" style={{ marginTop: 8 }}>{stackError}</p> : null}
+                <div className="modal-actions">
+                  <button
+                    className="ghost"
+                    disabled={stackSaving}
+                    onClick={() => {
+                      setStackModalOpen(false);
+                      resetStackForm();
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button onClick={handleSaveStack} disabled={stackSaving}>
+                    {stackSaving ? "Saving…" : stackEditingSlug ? "Save" : "Create"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </main>
+      </div>
+    );
+  }
   if (isBackupsPage) {
     return (
       <div className="landing-shell">
         <SidebarNav
           isHomeActive={false}
           isPlaylistManagerActive={false}
+          isStacksActive={false}
           isBackupsActive
           buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
           version={APP_VERSION.replace(/^v/i, "")}
           onSelectHome={handleGoHome}
           onOpenPlaylistManager={handleOpenPlaylistManager}
+          onOpenStacks={handleOpenStacks}
           onOpenBackups={handleOpenBackups}
           onOpenAbout={handleOpenAbout}
         />
@@ -1257,11 +1688,13 @@ function App() {
         <SidebarNav
           isHomeActive={false}
           isPlaylistManagerActive
+          isStacksActive={false}
           isBackupsActive={false}
           buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
           version={APP_VERSION.replace(/^v/i, "")}
           onSelectHome={handleGoHome}
           onOpenPlaylistManager={handleOpenPlaylistManager}
+          onOpenStacks={handleOpenStacks}
           onOpenBackups={handleOpenBackups}
           onOpenAbout={handleOpenAbout}
         />
@@ -1394,13 +1827,15 @@ function App() {
   return (
     <div className="landing-shell">
       <SidebarNav
-        isHomeActive={!isPlaylistManager && !isBackupsPage}
+        isHomeActive={!isPlaylistManager && !isBackupsPage && !isStacksPage}
         isPlaylistManagerActive={false}
+        isStacksActive={isStacksPage}
         isBackupsActive={isBackupsPage}
         buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
         version={APP_VERSION.replace(/^v/i, "")}
         onSelectHome={handleGoHome}
         onOpenPlaylistManager={handleOpenPlaylistManager}
+        onOpenStacks={handleOpenStacks}
         onOpenBackups={handleOpenBackups}
         onOpenAbout={handleOpenAbout}
       />
@@ -1557,26 +1992,31 @@ function App() {
                             {type}
                           </option>
                         ))}
+                        {stacks.map(s => (
+                          <option key={`stack-${s.slug}`} value={`stack:${s.slug}`}>
+                            stack ({s.slug})
+                          </option>
+                        ))}
                       </select>
                       <button type="button" onClick={handleAddWidget} disabled={!createWidgetSelect}>
                         Add
                       </button>
                     </div>
                   </label>
-                  {createWidgets.length > 0 ? (
-                    <div className="chip-row">
-                      {createWidgets.map((type, idx) => (
-                        <span key={`${type}-${idx}`} className="chip">
-                          {type}
-                          <button type="button" onClick={() => handleRemoveWidget(idx)} aria-label={`Remove ${type}`}>
-                            <ClearIcon fontSize="small" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="muted" style={{ margin: "6px 0 0" }}>No widgets selected</p>
-                  )}
+                    {createWidgets.length > 0 ? (
+                      <div className="chip-row">
+                        {createWidgets.map((item, idx) => (
+                          <span key={`${item.type}-${item.stackSlug || idx}`} className="chip">
+                            {item.type}{item.stackSlug ? ` • ${item.stackSlug}` : ""}
+                            <button type="button" onClick={() => handleRemoveWidget(idx)} aria-label={`Remove ${item.type}`}>
+                              <ClearIcon fontSize="small" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted" style={{ margin: "6px 0 0" }}>No widgets selected</p>
+                    )}
                 </div>
               </div>
               {createError ? <p className="error-text" style={{ marginTop: 8 }}>{createError}</p> : null}
@@ -1669,6 +2109,11 @@ function App() {
                             {type}
                           </option>
                         ))}
+                        {stacks.map(s => (
+                          <option key={`stack-${s.slug}`} value={`stack:${s.slug}`}>
+                            stack ({s.slug})
+                          </option>
+                        ))}
                       </select>
                       <button type="button" onClick={handleAddEditWidget} disabled={!editWidgetSelect}>
                         Add
@@ -1679,7 +2124,7 @@ function App() {
                     <div className="chip-row">
                       {editWidgets.map((w, idx) => (
                         <span key={`${w.id}-${idx}`} className="chip">
-                          {w.type} ({w.id})
+                          {w.type} ({w.id}{w.stack?.slug ? ` • ${w.stack.slug}` : ""})
                           <button type="button" onClick={() => handleRemoveEditWidget(idx)} aria-label={`Remove ${w.id}`}>
                             <ClearIcon fontSize="small" />
                           </button>

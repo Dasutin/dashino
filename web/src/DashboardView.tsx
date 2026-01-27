@@ -436,6 +436,7 @@ type DashboardViewProps = {
 function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = true }: DashboardViewProps) {
   const [templates, setTemplates] = useState<Record<string, WidgetTemplate>>({});
   const [widgetData, setWidgetData] = useState<Record<string, StreamPayload>>({});
+  const [stackChildPayloads, setStackChildPayloads] = useState<Record<string, StreamPayload>>({});
   const stylesInjected = useRef<Set<string>>(new Set());
   const themeStylesInjected = useRef<Set<string>>(new Set());
   const bodyThemeClass = useRef<string | null>(null);
@@ -487,6 +488,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
   const [resizeHandlesVisible, setResizeHandlesVisible] = useState(false);
 
   const widgetIds = useMemo(() => new Set(dashboard.widgets.map(w => w.id)), [dashboard.widgets]);
+  const stackWidgetIds = useMemo(() => dashboard.widgets.filter(w => w.type === "stack").map(w => w.id), [dashboard.widgets]);
   const editingActive = editingEnabled && resizeHandlesVisible;
 
   useEffect(() => {
@@ -891,6 +893,19 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
 
           setWidgetData(current => ({ ...current, [payload.widgetId!]: payload }));
         }
+
+        if (payload.widgetId) {
+          setStackChildPayloads(prev => ({ ...prev, [payload.widgetId!]: payload }));
+          if (stackWidgetIds.length > 0) {
+            setWidgetData(current => {
+              const next = { ...current } as typeof current;
+              stackWidgetIds.forEach(id => {
+                next[id] = payload;
+              });
+              return next;
+            });
+          }
+        }
         setConnected(true);
       } catch (error) {
         console.error("Failed to parse event payload", error);
@@ -902,7 +917,7 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
       onConnectionChange?.(false);
       es.close();
     };
-  }, [apiOrigin, onConnectionChange, sseEnabled, widgetIds]);
+  }, [apiOrigin, onConnectionChange, sseEnabled, widgetIds, stackWidgetIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1071,7 +1086,9 @@ function DashboardView({ dashboard, apiOrigin, onConnectionChange, sseEnabled = 
         ) : null}
         {dashboard.widgets.map(widget => {
           const template = templates[widget.type];
-          const payload = widgetData[widget.id];
+          const payload = widget.type === 'stack'
+            ? { widgetId: widget.id, type: 'stack-child-map', data: { __stackChildMap: stackChildPayloads } }
+            : widgetData[widget.id];
           const position = layout[widget.id] ?? widget.position;
           const isDragging = draggingId === widget.id;
           const dragStyle = isDragging ? { transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)`, zIndex: 5, cursor: "grabbing" } : undefined;

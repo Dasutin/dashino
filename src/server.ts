@@ -110,6 +110,7 @@ type WidgetPlacement = {
   type: string;
   title?: string;
   position?: { w?: number; h?: number; x?: number; y?: number };
+  stack?: StackWidgetConfig;
 };
 
 type Dashboard = {
@@ -126,6 +127,20 @@ type Playlist = {
   name: string;
   rotationSeconds: number;
   dashboards: string[];
+};
+
+type StackWidgetConfig = {
+  slug: string;
+  overrideIntervalMs?: number;
+  mode?: 'cycle' | 'random' | string;
+};
+
+type StackDefinition = {
+  slug: string;
+  name: string;
+  intervalMs?: number;
+  mode?: 'cycle' | 'random' | string;
+  widgets: WidgetPlacement[];
 };
 
 app.use(cors());
@@ -153,6 +168,7 @@ const themesDir = path.join(projectRoot, 'themes');
 const assetsDir = path.join(projectRoot, 'assets');
 const playlistsDir = path.join(projectRoot, 'playlists');
 const backupsDir = path.join(projectRoot, 'backups');
+const stacksDir = path.join(projectRoot, 'stacks');
 
 const slugifyValue = (value: string) =>
   value
@@ -167,6 +183,9 @@ if (!fs.existsSync(playlistsDir)) {
 }
 if (!fs.existsSync(backupsDir)) {
   fs.mkdirSync(backupsDir, { recursive: true });
+}
+if (!fs.existsSync(stacksDir)) {
+  fs.mkdirSync(stacksDir, { recursive: true });
 }
 // Serve built client assets (dist/web) when running the compiled server.
 // __dirname resolves to dist/server at runtime, so the client build sits at ../web
@@ -188,6 +207,9 @@ let dashboardsDirty = true;
 
 let playlistsCache: Playlist[] = [];
 let playlistsDirty = true;
+
+let stacksCache: StackDefinition[] = [];
+let stacksDirty = true;
 
 function watchDirRecursive(dir: string, onChange: () => void) {
   if (!fs.existsSync(dir)) return;
@@ -248,6 +270,79 @@ async function loadPlaylists(): Promise<Playlist[]> {
   playlistsCache = loaded;
   playlistsDirty = false;
   return playlistsCache;
+}
+
+function parseStackConfig(raw: any): StackWidgetConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const slugRaw = typeof raw.slug === 'string' ? slugifyValue(raw.slug) : '';
+  if (!slugRaw || !isValidSlug(slugRaw)) return undefined;
+  const cfg: StackWidgetConfig = { slug: slugRaw };
+  if (Number.isFinite(Number(raw.overrideIntervalMs))) cfg.overrideIntervalMs = Number(raw.overrideIntervalMs);
+  if (typeof raw.mode === 'string' && raw.mode.trim()) cfg.mode = raw.mode.trim();
+  return cfg;
+}
+
+function sanitizeStackWidgets(items: unknown[]): WidgetPlacement[] {
+  const counts: Record<string, number> = {};
+  const ids = new Set<string>();
+
+  return items
+    .map(item => {
+      const raw = item as any;
+      const rawType = typeof raw === 'string' ? raw : raw?.type;
+      const type = slugifyValue(rawType || '');
+      if (!type) return null;
+
+      const rawId = typeof raw === 'object' && typeof raw?.id === 'string' ? raw.id.trim() : '';
+      counts[type] = (counts[type] ?? 0) + 1;
+      let id = rawId || (counts[type] === 1 ? type : `${type}-${counts[type]}`);
+      let attempt = counts[type];
+      while (ids.has(id)) {
+        attempt += 1;
+        id = `${type}-${attempt}`;
+      }
+      ids.add(id);
+
+      const title = typeof raw?.title === 'string' ? raw.title : undefined;
+      const stack = parseStackConfig(raw?.stack);
+
+      return { id, type, title, stack } satisfies WidgetPlacement;
+    })
+    .filter(Boolean) as WidgetPlacement[];
+}
+
+async function loadStacks(): Promise<StackDefinition[]> {
+  if (!stacksDirty && !cacheDisabled) return stacksCache;
+  if (!fs.existsSync(stacksDir)) {
+    log('warn', 'stacks dir missing', { dir: stacksDir });
+    stacksCache = [];
+    stacksDirty = false;
+    return stacksCache;
+  }
+
+  const files = (await fsPromises.readdir(stacksDir)).filter(f => f.endsWith('.json'));
+  const loaded: StackDefinition[] = [];
+  for (const file of files) {
+    try {
+      const raw = await fsPromises.readFile(path.join(stacksDir, file), 'utf-8');
+      const json = JSON.parse(raw) as StackDefinition;
+      if (!json.slug || !json.name || !Array.isArray(json.widgets)) {
+        throw new Error('invalid stack');
+      }
+      const widgets = sanitizeStackWidgets(json.widgets ?? []);
+      loaded.push({ ...json, widgets });
+    } catch (err) {
+      log('warn', 'failed to load stack', { file, error: `${err}` });
+    }
+  }
+  stacksCache = loaded;
+  stacksDirty = false;
+  return stacksCache;
+}
+
+async function readStack(slug: string): Promise<StackDefinition | undefined> {
+  const stacks = await loadStacks();
+  return stacks.find(s => s.slug === slug);
 }
 
 type CachedFile = { content: string; mtimeMs: number };
@@ -480,6 +575,7 @@ app.post('/api/dashboards', async (req: Request, res: Response) => {
       const rawType = typeof item === 'string' ? item : item?.type;
       const type = slugifyValue(rawType || '');
       if (!type) return null;
+      const stack = parseStackConfig(typeof item === 'object' ? item?.stack : undefined);
       widgetCounts[type] = (widgetCounts[type] ?? 0) + 1;
       const id = typeof item === 'object' && typeof item?.id === 'string' && item.id.trim()
         ? item.id.trim()
@@ -489,7 +585,8 @@ app.post('/api/dashboards', async (req: Request, res: Response) => {
       return {
         id,
         type,
-        position: { w: 1, h: 1 }
+        position: { w: 1, h: 1 },
+        stack: stack ?? undefined
       } satisfies Dashboard['widgets'][number];
     })
     .filter(Boolean) as Dashboard['widgets'];
@@ -623,7 +720,9 @@ app.post('/api/dashboards/:slug', async (req: Request, res: Response) => {
         if (Number.isFinite(pos.x)) position.x = Number(pos.x);
         if (Number.isFinite(pos.y)) position.y = Number(pos.y);
 
-        return { id, type, position } satisfies Dashboard['widgets'][number];
+        const stack = parseStackConfig(raw?.stack);
+
+        return { id, type, position, stack: stack ?? undefined } satisfies Dashboard['widgets'][number];
       })
       .filter(Boolean) as Dashboard['widgets'];
 
@@ -802,6 +901,173 @@ app.delete('/api/playlists/:slug', async (req: Request, res: Response) => {
   }
 });
 
+app.get('/api/stacks', async (_req: Request, res: Response) => {
+  const stacks = await loadStacks();
+  res.json({
+    stacks: stacks.map(s => ({
+      ...s,
+      intervalMs: s.intervalMs ?? 15000,
+      mode: s.mode ?? 'cycle',
+      widgetCount: Array.isArray(s.widgets) ? s.widgets.length : 0
+    }))
+  });
+});
+
+app.get('/api/stacks/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  const stack = await readStack(slug);
+  if (!stack) {
+    res.status(404).json({ error: 'stack not found' });
+    return;
+  }
+  res.json({ stack });
+});
+
+app.post('/api/stacks', async (req: Request, res: Response) => {
+  const name = (req.body?.name || '').trim();
+  const slugInput = typeof req.body?.slug === 'string' ? req.body.slug.trim() : '';
+  const slugBase = slugifyValue(slugInput || name || 'stack');
+  const slug = slugBase || 'stack';
+
+  if (!name) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+
+  if (!isValidSlug(slug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  const filePath = path.join(stacksDir, `${slug}.json`);
+  if (fs.existsSync(filePath)) {
+    res.status(409).json({ error: 'stack already exists' });
+    return;
+  }
+
+  const intervalMs = Number.isFinite(Number(req.body?.intervalMs)) ? Number(req.body.intervalMs) : 15000;
+  const mode = typeof req.body?.mode === 'string' ? req.body.mode.trim() : 'cycle';
+  const widgetsRaw = Array.isArray(req.body?.widgets) ? req.body.widgets : [];
+  const widgets = sanitizeStackWidgets(widgetsRaw);
+
+  const stack: StackDefinition = {
+    slug,
+    name,
+    intervalMs,
+    mode,
+    widgets
+  };
+
+  try {
+    await prettyWriteJson(filePath, stack);
+    stacksDirty = true;
+    res.status(201).json({ stack });
+  } catch (err) {
+    log('error', 'failed to save stack', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to save stack' });
+  }
+});
+
+app.put('/api/stacks/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  if (!slug || !isValidSlug(slug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  const filePath = path.join(stacksDir, `${slug}.json`);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'stack not found' });
+    return;
+  }
+
+  let existing: StackDefinition;
+  try {
+    const raw = await fsPromises.readFile(filePath, 'utf-8');
+    existing = JSON.parse(raw) as StackDefinition;
+  } catch (err) {
+    log('error', 'failed to read stack for edit', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to read stack' });
+    return;
+  }
+
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : existing.name;
+  if (!name) {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+
+  const targetSlugRaw = typeof req.body?.slug === 'string' ? req.body.slug.trim() : existing.slug;
+  const nextSlug = slugifyValue(targetSlugRaw || existing.slug);
+  if (!nextSlug || !isValidSlug(nextSlug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  if (nextSlug !== slug) {
+    const nextPath = path.join(stacksDir, `${nextSlug}.json`);
+    if (fs.existsSync(nextPath)) {
+      res.status(409).json({ error: 'stack with that slug already exists' });
+      return;
+    }
+  }
+
+  const intervalMsRaw = req.body?.intervalMs;
+  const intervalMs = Number.isFinite(Number(intervalMsRaw)) ? Number(intervalMsRaw) : existing.intervalMs ?? 15000;
+  const modeInput = typeof req.body?.mode === 'string' ? req.body.mode.trim() : existing.mode ?? 'cycle';
+  const widgetsRaw = Array.isArray(req.body?.widgets) ? req.body.widgets : undefined;
+  const widgets = widgetsRaw ? sanitizeStackWidgets(widgetsRaw) : sanitizeStackWidgets(existing.widgets ?? []);
+
+  const nextStack: StackDefinition = {
+    ...existing,
+    slug: nextSlug,
+    name,
+    intervalMs,
+    mode: modeInput,
+    widgets
+  };
+
+  try {
+    const targetPath = path.join(stacksDir, `${nextSlug}.json`);
+    await prettyWriteJson(targetPath, nextStack);
+    if (nextSlug !== slug) {
+      try {
+        await fsPromises.unlink(filePath);
+      } catch {
+        // ignore cleanup
+      }
+    }
+    stacksDirty = true;
+    res.json({ stack: nextStack });
+  } catch (err) {
+    log('error', 'failed to update stack', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to update stack' });
+  }
+});
+
+app.delete('/api/stacks/:slug', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  if (!slug || !isValidSlug(slug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  const file = path.join(stacksDir, `${slug}.json`);
+  if (!fs.existsSync(file)) {
+    res.status(404).json({ error: 'stack not found' });
+    return;
+  }
+
+  try {
+    await fsPromises.unlink(file);
+    stacksDirty = true;
+    res.json({ ok: true });
+  } catch (err) {
+    log('error', 'failed to delete stack', { slug, error: `${err}` });
+    res.status(500).json({ error: 'failed to delete stack' });
+  }
+});
+
 app.post('/api/events', (req: Request, res: Response) => {
   const { type = 'message', data = {}, widgetId } = req.body ?? {};
   broadcast({ widgetId, type, data, at: new Date().toISOString() });
@@ -947,7 +1213,8 @@ function buildBackupArchive(createdAt: Date) {
     { name: 'themes', dir: themesDir },
     { name: 'widgets', dir: widgetsDir },
     { name: 'jobs', dir: jobsDir },
-    { name: 'playlists', dir: playlistsDir }
+    { name: 'playlists', dir: playlistsDir },
+    { name: 'stacks', dir: stacksDir }
   ];
 
   for (const src of sources) {
@@ -1318,6 +1585,23 @@ app.get('/api/logs/:name/stream', async (req: Request, res: Response) => {
   }, 2000);
 });
 
+app.get('/stacks/:slug.json', async (req: Request, res: Response) => {
+  const slug = (req.params.slug || '').trim();
+  if (!slug || !isValidSlug(slug)) {
+    res.status(400).json({ error: 'invalid slug' });
+    return;
+  }
+
+  const filePath = path.join(stacksDir, `${slug}.json`);
+  try {
+    const content = await fsPromises.readFile(filePath, 'utf-8');
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('json').send(content);
+  } catch (err) {
+    res.status(404).json({ error: 'stack not found' });
+  }
+});
+
 app.get('/widgets/:type/widget.:ext', async (req: Request, res: Response) => {
   const { type, ext } = req.params;
   if (ext !== 'html' && ext !== 'css') {
@@ -1450,4 +1734,9 @@ watchDirRecursive(themesDir, () => {
 watchDirRecursive(playlistsDir, () => {
   playlistsDirty = true;
   log('info', 'playlists changed; cache invalidated');
+});
+
+watchDirRecursive(stacksDir, () => {
+  stacksDirty = true;
+  log('info', 'stacks changed; cache invalidated');
 });

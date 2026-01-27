@@ -20,6 +20,7 @@ export type WidgetPlacement = {
     maxH?: number;
     aspectRatio?: number;
   };
+  stack?: StackWidgetConfig;
 };
 
 export type Dashboard = {
@@ -42,6 +43,20 @@ export type Playlist = {
   name: string;
   rotationSeconds: number;
   dashboards: string[];
+};
+
+export type StackWidgetConfig = {
+  slug: string;
+  overrideIntervalMs?: number;
+  mode?: 'cycle' | 'random' | string;
+};
+
+export type StackDefinition = {
+  slug: string;
+  name: string;
+  intervalMs?: number;
+  mode?: 'cycle' | 'random' | string;
+  widgets: WidgetPlacement[];
 };
 
 export type WidgetTemplate = {

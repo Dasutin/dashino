@@ -21,6 +21,7 @@ import * as nest from './nest';
 import * as progress from './progress';
 import * as rss from './rss';
 import * as spark from './spark';
+import * as stack from './stack';
 import * as status from './status';
 import * as stocks from './stocks';
 import * as table from './table';
@@ -59,6 +60,7 @@ const controllers: Record<string, WidgetFactory> = {
   'progress': resolveFactory(progress),
   'rss': resolveFactory(rss),
   'spark': resolveFactory(spark),
+  'stack': resolveFactory(stack),
   'status': resolveFactory(status),
   'stocks': resolveFactory(stocks),
   'table': resolveFactory(table),
@@ -68,5 +70,9 @@ const controllers: Record<string, WidgetFactory> = {
   'twitchstream': resolveFactory(twitchstream),
   'whispers': resolveFactory(whispers),
 };
+
+if (typeof globalThis !== "undefined") {
+  try { (globalThis as any).__dashinoControllers = controllers; } catch (_) { /* ignore */ }
+}
 
 export default controllers;

@@ -70,6 +70,10 @@ function generateIndex(types) {
   });
   lines.push('};');
   lines.push('');
+  lines.push('if (typeof globalThis !== "undefined") {');
+  lines.push('  try { (globalThis as any).__dashinoControllers = controllers; } catch (_) { /* ignore */ }');
+  lines.push('}');
+  lines.push('');
   lines.push('export default controllers;');
 
   fs.writeFileSync(generatedFile, lines.join('\n'));

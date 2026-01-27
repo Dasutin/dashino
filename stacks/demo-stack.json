@@ -1,0 +1,18 @@
+{
+  "slug": "demo-stack",
+  "name": "Demo Stack",
+  "intervalMs": 15000,
+  "mode": "cycle",
+  "widgets": [
+    {
+      "id": "gauge",
+      "type": "gauge",
+      "title": "gauge"
+    },
+    {
+      "id": "actions",
+      "type": "actions",
+      "title": "actions"
+    }
+  ]
+}
