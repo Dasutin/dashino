@@ -5,6 +5,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import EditIcon from "@mui/icons-material/Edit";
 import ClearIcon from "@mui/icons-material/Clear";
+import SearchIcon from "@mui/icons-material/Search";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import StorageIcon from "@mui/icons-material/Storage";
@@ -163,7 +164,7 @@ function App() {
   const [stackName, setStackName] = useState("");
   const [stackSlugInput, setStackSlugInput] = useState("");
   const [stackSlugTouched, setStackSlugTouched] = useState(false);
-  const [stackInterval, setStackInterval] = useState(15000);
+  const [stackInterval, setStackInterval] = useState(15);
   const [stackMode, setStackMode] = useState("cycle");
   const [stackSaving, setStackSaving] = useState(false);
   const [stackError, setStackError] = useState<string | null>(null);
@@ -933,7 +934,7 @@ function App() {
     setStackName("");
     setStackSlugInput("");
     setStackSlugTouched(false);
-    setStackInterval(15000);
+    setStackInterval(15);
     setStackMode("cycle");
     setStackError(null);
     setStackWidgets([]);
@@ -959,8 +960,8 @@ function App() {
   const handleSaveStack = async () => {
     const name = stackName.trim();
     const slug = (stackSlugValue || slugify(stackName, "")).trim();
-    const intervalMsRaw = Number(stackInterval);
-    const intervalMs = Number.isFinite(intervalMsRaw) ? Math.max(500, intervalMsRaw) : 15000;
+    const intervalSecRaw = Number(stackInterval);
+    const intervalMs = Number.isFinite(intervalSecRaw) ? Math.max(1, intervalSecRaw) * 1000 : 15000;
     const mode = (stackMode || "cycle").trim() || "cycle";
     const widgetsPayload = stackWidgets.map((w, idx) => {
       const type = slugify(w.type, w.type);
@@ -1260,16 +1261,16 @@ function App() {
                   <div key={s.slug} className="playlist-row">
                     <div>
                       <div className="playlist-name">{s.name}</div>
-                      <div className="playlist-meta">{(s.widgets?.length ?? 0)} widgets · {(s.intervalMs ?? 15000)}ms · {(s.mode ?? "cycle")}</div>
+                      <div className="playlist-meta">{(s.widgets?.length ?? 0)} widgets · {Math.round((s.intervalMs ?? 15000) / 1000)}s · {(s.mode ?? "cycle")}</div>
                     </div>
                     <div className="playlist-actions">
                         <button onClick={() => {
-                          setStackEditingSlug(s.slug);
-                        setStackError(null);
+                          setStackEditingSlug(slug);
+                          setStackError(null);
                           setStackName(s.name || "");
                           setStackSlugInput(s.slug || "");
                           setStackSlugTouched(true);
-                          setStackInterval(s.intervalMs ?? 15000);
+                          setStackInterval(((s.intervalMs ?? 15000) / 1000) || 15);
                           setStackMode(s.mode ?? "cycle");
                           setStackWidgets((s.widgets ?? []).map((w, idx) => ({
                             id: w.id || `${w.type}-${idx + 1}`,
@@ -1349,10 +1350,10 @@ function App() {
                     />
                   </label>
                   <label>
-                    Interval (ms)
+                    Interval (s)
                     <input
                       type="number"
-                      min={500}
+                      min={1}
                       value={stackInterval}
                       onChange={e => setStackInterval(Number(e.target.value) || 0)}
                     />
@@ -1537,33 +1538,42 @@ function App() {
                   {!logsLoading && logs.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No logs found.</p> : null}
                   {!logsLoading && logs.length > 0 ? (
                     <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                      {logs.map(log => (
-                        <div
-                          key={log.name}
-                          onClick={() => {
-                            if (log.name.toLowerCase().endsWith('.log')) {
-                              setActiveLog(log.name);
-                              setLogStreamFresh(false);
-                            }
-                          }}
-                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: activeLog === log.name ? "var(--control-bg-strong, rgba(255,255,255,0.06))" : "var(--control-bg)", cursor: log.name.toLowerCase().endsWith('.log') ? "pointer" : "default" }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 600 }}>{log.name}</div>
-                            <div className="muted" style={{ fontSize: 12 }}>
-                              {formatBytes(log.size)} • {formatDate(log.modifiedAt)}
+                      {logs.map(log => {
+                        const isLog = log.name.toLowerCase().endsWith('.log');
+                        return (
+                          <div
+                            key={log.name}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: activeLog === log.name ? "var(--control-bg-strong, rgba(255,255,255,0.06))" : "var(--control-bg)" }}
+                          >
+                            <div>
+                              <div style={{ fontWeight: 600 }}>{log.name}</div>
+                              <div className="muted" style={{ fontSize: 12 }}>
+                                {formatBytes(log.size)} • {formatDate(log.modifiedAt)}
+                              </div>
+                            </div>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button
+                                onClick={() => {
+                                  if (!isLog) return;
+                                  setActiveLog(log.name);
+                                  setLogStreamFresh(false);
+                                }}
+                                disabled={!isLog}
+                                aria-label={isLog ? `Open ${log.name}` : "Open disabled"}
+                                title={isLog ? "Open log" : "Not a log file"}
+                              >
+                                <SearchIcon fontSize="small" />
+                              </button>
+                              <button onClick={e => { e.stopPropagation(); handleDownloadLog(log.name); }} aria-label="Download log" title="Download log">
+                                <DownloadIcon fontSize="small" />
+                              </button>
+                              <button className="danger" onClick={e => { e.stopPropagation(); handleDeleteLog(log.name); }} aria-label="Delete log" title="Delete log">
+                                <DeleteIcon fontSize="small" />
+                              </button>
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button onClick={e => { e.stopPropagation(); handleDownloadLog(log.name); }} aria-label="Download log" title="Download log">
-                              <DownloadIcon fontSize="small" />
-                            </button>
-                            <button className="danger" onClick={e => { e.stopPropagation(); handleDeleteLog(log.name); }} aria-label="Delete log" title="Delete log">
-                              <DeleteIcon fontSize="small" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : null}
                   {activeLog ? (
