@@ -24,23 +24,29 @@ const STACKS_ROUTE = "stacks";
 const BACKUPS_ROUTE = "settings";
 const APP_VERSION = "0.1.0";
 
+// Default widgets mirror the demotv dashboard so empty installs still load its layout
 const DEFAULT_WIDGET_TYPES = [
-  "camera",
-  "camera2",
-  "clock",
-  "ev",
-  "forecast",
-  "hourly",
-  "message",
+  "frame",
+  "graph",
+  "feed",
+  "log",
+  "status",
   "metric",
-  "stack",
-  "nest",
-  "radar",
-  "roomtemp",
-  "stocks",
-  "tomorrow",
-  "twitchstream",
-  "wispers"
+  "gauge",
+  "progress",
+  "table",
+  "spark",
+  "donut",
+  "bar",
+  "clock",
+  "agenda",
+  "countdown",
+  "toggle",
+  "actions",
+  "inspect",
+  "image",
+  "text",
+  "rss"
 ];
 
 type BackupEntry = {
@@ -1028,30 +1034,30 @@ function App() {
     }
   };
 
-    const handleAddStackWidget = () => {
-      const type = slugify(stackWidgetSelect.trim(), stackWidgetSelect.trim());
-      if (!type) return;
-      setStackError(null);
-      setStackWidgets(prev => {
-        const counts: Record<string, number> = {};
-        const ids = new Set(prev.map(w => w.id));
-        prev.forEach(w => {
-          counts[w.type] = (counts[w.type] ?? 0) + 1;
-        });
-        let attempt = (counts[type] ?? 0) + 1;
-        let candidate = attempt === 1 ? type : `${type}-${attempt}`;
-        while (ids.has(candidate)) {
-          attempt += 1;
-          candidate = `${type}-${attempt}`;
-        }
-        return [...prev, { id: candidate, type, title: type }];
+  const handleAddStackWidget = () => {
+    const type = slugify(stackWidgetSelect.trim(), stackWidgetSelect.trim());
+    if (!type) return;
+    setStackError(null);
+    setStackWidgets(prev => {
+      const counts: Record<string, number> = {};
+      const ids = new Set(prev.map(w => w.id));
+      prev.forEach(w => {
+        counts[w.type] = (counts[w.type] ?? 0) + 1;
       });
-      setStackWidgetSelect("");
-    };
+      let attempt = (counts[type] ?? 0) + 1;
+      let candidate = attempt === 1 ? type : `${type}-${attempt}`;
+      while (ids.has(candidate)) {
+        attempt += 1;
+        candidate = `${type}-${attempt}`;
+      }
+      return [...prev, { id: candidate, type, title: type }];
+    });
+    setStackWidgetSelect("");
+  };
 
-    const handleRemoveStackWidget = (index: number) => {
-      setStackWidgets(prev => prev.filter((_, i) => i !== index));
-    };
+  const handleRemoveStackWidget = (index: number) => {
+    setStackWidgets(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleEditPlaylist = (playlist: Playlist) => {
     setEditingSlug(playlist.slug);
@@ -1190,651 +1196,627 @@ function App() {
     return d.toLocaleString();
   };
 
-  if (activePlaylistSlug) {
-    return (
-      <div className="dashboard">
-        <Suspense fallback={<div className="panel"><p>Loading playlist…</p></div>}>
-          <PlaylistView slug={activePlaylistSlug} apiOrigin={apiOrigin} />
-        </Suspense>
-      </div>
-    );
-  }
+  const renderStacksPage = () => (
+    <div className="landing-shell">
+      <SidebarNav
+        isHomeActive={false}
+        isPlaylistManagerActive={false}
+        isStacksActive
+        isBackupsActive={false}
+        buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+        version={APP_VERSION.replace(/^v/i, "")}
+        onSelectHome={handleGoHome}
+        onOpenPlaylistManager={handleOpenPlaylistManager}
+        onOpenStacks={handleOpenStacks}
+        onOpenBackups={handleOpenBackups}
+        onOpenAbout={handleOpenAbout}
+      />
 
-  if (selectedSlug && currentDashboard) {
-    return (
-      <div className="layout dashboard">
-        <Suspense fallback={<section className="panel"><p>Loading dashboard…</p></section>}>
-          <DashboardView dashboard={currentDashboard} apiOrigin={apiOrigin} onConnectionChange={() => {}} />
-        </Suspense>
-      </div>
-    );
-  }
+      <main className="landing landing-main">
+        <div className="top-bar">
+          <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
+            {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+          </button>
+        </div>
 
-
-  if (isStacksPage) {
-    return (
-      <div className="landing-shell">
-        <SidebarNav
-          isHomeActive={false}
-          isPlaylistManagerActive={false}
-          isStacksActive
-          isBackupsActive={false}
-          buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
-          version={APP_VERSION.replace(/^v/i, "")}
-          onSelectHome={handleGoHome}
-          onOpenPlaylistManager={handleOpenPlaylistManager}
-          onOpenStacks={handleOpenStacks}
-          onOpenBackups={handleOpenBackups}
-          onOpenAbout={handleOpenAbout}
-        />
-
-        <main className="landing landing-main">
-          <div className="top-bar">
-            <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
-            </button>
+        <header className="hero">
+          <div>
+            <h1>Dashino Stacks</h1>
+            <p>Rotate between multiple widgets.</p>
           </div>
+          <div className="hero-actions">
+            <button onClick={() => { resetStackForm(); setStackModalOpen(true); }}>New Stack</button>
+          </div>
+        </header>
 
-          <header className="hero">
-            <div>
-              <h1>Dashino Stacks</h1>
-              <p>Rotate between multiple widgets.</p>
-            </div>
-            <div className="hero-actions">
-              <button onClick={() => { resetStackForm(); setStackModalOpen(true); }}>New Stack</button>
-            </div>
-          </header>
+        {stacksError ? <p className="error-text">{stacksError}</p> : null}
 
-          {stacksError ? <p className="error-text">{stacksError}</p> : null}
-
-          <section className="panel">
-            <div className="panel-header">
-              <h3>Stacks</h3>
-            </div>
-            {loadingStacks ? (
-              <p className="muted">Loading stacks…</p>
-            ) : stacks.length === 0 ? (
-              <p className="muted">No stacks configured.</p>
-            ) : (
-              <div className="playlist-list">
-                {stacks.map(s => (
-                  <div key={s.slug} className="playlist-row">
-                    <div>
-                      <div className="playlist-name">{s.name}</div>
-                      <div className="playlist-meta">{(s.widgets?.length ?? 0)} widgets · {Math.round((s.intervalMs ?? 15000) / 1000)}s · {(s.mode ?? "cycle")}</div>
-                    </div>
-                    <div className="playlist-actions">
-                        <button onClick={() => {
-                          setStackEditingSlug(s.slug);
-                          setStackError(null);
-                          setStackName(s.name || "");
-                          setStackSlugInput(s.slug || "");
-                          setStackSlugTouched(true);
-                          setStackInterval(((s.intervalMs ?? 15000) / 1000) || 15);
-                          setStackMode(s.mode ?? "cycle");
-                          setStackWidgets((s.widgets ?? []).map((w, idx) => ({
-                            id: w.id || `${w.type}-${idx + 1}`,
-                            type: w.type,
-                            title: w.title || w.id || w.type
-                          })));
-                        setStackWidgetSelect("");
-                          setStackModalOpen(true);
-                        }} aria-label={`Edit ${s.name}`}>
-                          <EditIcon fontSize="small" />
-                        </button>
-                      <button
-                        className="danger icon"
-                        onClick={() => openDeleteStack(s.slug, s.name)}
-                        aria-label={`Delete ${s.name}`}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </button>
-                    </div>
+        <section className="panel">
+          <div className="panel-header">
+            <h3>Stacks</h3>
+          </div>
+          {loadingStacks ? (
+            <p className="muted">Loading stacks…</p>
+          ) : stacks.length === 0 ? (
+            <p className="muted">No stacks configured.</p>
+          ) : (
+            <div className="playlist-list">
+              {stacks.map(s => (
+                <div key={s.slug} className="playlist-row">
+                  <div>
+                    <div className="playlist-name">{s.name}</div>
+                    <div className="playlist-meta">{(s.widgets?.length ?? 0)} widgets · {Math.round((s.intervalMs ?? 15000) / 1000)}s · {(s.mode ?? "cycle")}</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {stackDeleteSlug ? (
-            <div className="modal-backdrop" role="dialog" aria-modal="true">
-              <div className="modal">
-                <div className="modal-header">
-                  <h3>Delete Stack</h3>
-                </div>
-                <div className="modal-body">
-                  <p>Are you sure you want to delete “{stackDeleteName || stackDeleteSlug}”?</p>
-                  <p className="muted">This only removes the stack. Dashboards and widgets will remain.</p>
-                  {stackDeleteError ? <p className="error-text" style={{ marginTop: 8 }}>{stackDeleteError}</p> : null}
-                </div>
-                <div className="modal-actions">
-                  <button className="ghost" disabled={stackDeleting} onClick={resetDeleteStackState}>Cancel</button>
-                  <button className="danger" disabled={stackDeleting} onClick={handleDeleteStack}>
-                    {stackDeleting ? "Deleting…" : "Delete"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {stackModalOpen ? (
-            <div className="modal-backdrop" role="dialog" aria-modal="true">
-              <div className="modal">
-                <div className="modal-header">
-                  <h3>{stackEditingSlug ? "Edit Stack" : "New Stack"}</h3>
-                </div>
-                <div className="modal-body modal-grid">
-                  <label>
-                    Name
-                    <input
-                      type="text"
-                      value={stackName}
-                      onChange={e => {
-                        setStackName(e.target.value);
-                        if (!stackSlugTouched) {
-                          setStackSlugInput(slugify(e.target.value, ""));
-                        }
-                      }}
-                    />
-                  </label>
-                  <label>
-                    Slug (optional)
-                    <input
-                      type="text"
-                      value={stackSlugValue}
-                      disabled={Boolean(stackEditingSlug)}
-                      onChange={e => {
+                  <div className="playlist-actions">
+                    <button
+                      onClick={() => {
+                        setStackEditingSlug(s.slug);
+                        setStackError(null);
+                        setStackName(s.name || "");
+                        setStackSlugInput(s.slug || "");
                         setStackSlugTouched(true);
-                        setStackSlugInput(slugify(e.target.value, ""));
+                        setStackInterval(((s.intervalMs ?? 15000) / 1000) || 15);
+                        setStackMode(s.mode ?? "cycle");
+                        setStackWidgets((s.widgets ?? []).map((w, idx) => ({
+                          id: w.id || `${w.type}-${idx + 1}`,
+                          type: w.type,
+                          title: w.title || w.id || w.type
+                        })));
+                        setStackWidgetSelect("");
+                        setStackModalOpen(true);
                       }}
-                    />
-                  </label>
-                  <label>
-                    Interval (s)
-                    <input
-                      type="number"
-                      min={1}
-                      value={stackInterval}
-                      onChange={e => setStackInterval(Number(e.target.value) || 0)}
-                    />
-                  </label>
-                  <label>
-                    Mode
-                    <input
-                      type="text"
-                      value={stackMode}
-                      onChange={e => setStackMode(e.target.value)}
-                      placeholder="cycle"
-                    />
-                  </label>
-                  <div className="full-row">
-                    <label>
-                      Add widgets
-                      <div className="widget-picker">
-                        <select
-                          value={stackWidgetSelect}
-                          onChange={e => setStackWidgetSelect(e.target.value)}
-                        >
-                          <option value="">Select a widget type</option>
-                          {widgetChoices.map(type => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                        <button type="button" onClick={handleAddStackWidget} disabled={!stackWidgetSelect}>
-                          Add
-                        </button>
-                      </div>
-                    </label>
-                    {stackWidgets.length > 0 ? (
-                      <div className="chip-row">
-                        {stackWidgets.map((w, idx) => (
-                          <span key={`${w.id}-${idx}`} className="chip">
-                            {w.type} <span className="muted">({w.id})</span>
-                            <button type="button" onClick={() => handleRemoveStackWidget(idx)} aria-label={`Remove ${w.type}`}>
-                              <ClearIcon fontSize="small" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="muted" style={{ margin: "6px 0 0" }}>No widgets selected</p>
-                    )}
-                  </div>
-                </div>
-                {stackError ? <p className="error-text" style={{ marginTop: 8 }}>{stackError}</p> : null}
-                <div className="modal-actions">
-                  <button
-                    className="ghost"
-                    disabled={stackSaving}
-                    onClick={() => {
-                      setStackModalOpen(false);
-                      resetStackForm();
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button onClick={handleSaveStack} disabled={stackSaving}>
-                    {stackSaving ? "Saving…" : stackEditingSlug ? "Save" : "Create"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </main>
-      </div>
-    );
-  }
-  if (isBackupsPage) {
-    return (
-      <div className="landing-shell">
-        <SidebarNav
-          isHomeActive={false}
-          isPlaylistManagerActive={false}
-          isStacksActive={false}
-          isBackupsActive
-          buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
-          version={APP_VERSION.replace(/^v/i, "")}
-          onSelectHome={handleGoHome}
-          onOpenPlaylistManager={handleOpenPlaylistManager}
-          onOpenStacks={handleOpenStacks}
-          onOpenBackups={handleOpenBackups}
-          onOpenAbout={handleOpenAbout}
-        />
-
-        <main className="landing landing-main">
-          <div className="top-bar">
-            <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
-            </button>
-          </div>
-
-          <header className="hero">
-            <div>
-              <h1>Settings</h1>
-              <p>Create backups, view logs, and access utilities.</p>
-            </div>
-          </header>
-
-          <div className="panel" style={{ marginTop: 12 }}>
-            <div className="panel-header">
-              <h3>Settings</h3>
-            </div>
-            <div className="tab-row">
-              <button className={`tab ${settingsTab === "backup" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("backup")}>Backups</button>
-              <button className={`tab ${settingsTab === "logs" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("logs")}>Logs</button>
-              <button className={`tab ${settingsTab === "tools" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("tools")}>Tools</button>
-              <button className={`tab ${settingsTab === "about" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("about")}>About</button>
-            </div>
-            <div className="tab-panels">
-              {settingsTab === "backup" ? (
-                <div className="tab-panel">
-                  <p className="muted" style={{ marginBottom: 8 }}>Create a backup of dashboards, widgets, themes, jobs, playlists, and stacks.</p>
-                  <div className="panel-actions" style={{ marginTop: 6 }}>
-                    <button onClick={handleCreateBackup} disabled={creatingBackup}>
-                      {creatingBackup ? "Creating..." : "Create backup"}
+                      aria-label={`Edit ${s.name}`}
+                    >
+                      <EditIcon fontSize="small" />
+                    </button>
+                    <button
+                      className="danger icon"
+                      onClick={() => openDeleteStack(s.slug, s.name)}
+                      aria-label={`Delete ${s.name}`}
+                    >
+                      <DeleteIcon fontSize="small" />
                     </button>
                   </div>
-                  {backupsError ? <p className="error-text" style={{ marginTop: 10 }}>{backupsError}</p> : null}
-                  {backupsLoading ? <p className="muted" style={{ marginTop: 10 }}>Loading backups...</p> : null}
-                  {!backupsLoading && backups.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No backups made.</p> : null}
-                  {!backupsLoading && backups.length > 0 ? (
-                    <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                      {backups.map(b => (
-                        <div key={b.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: "var(--control-bg)" }}>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {stackDeleteSlug ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>Delete Stack</h3>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete “{stackDeleteName || stackDeleteSlug}”?</p>
+                <p className="muted">This only removes the stack. Dashboards and widgets will remain.</p>
+                {stackDeleteError ? <p className="error-text" style={{ marginTop: 8 }}>{stackDeleteError}</p> : null}
+              </div>
+              <div className="modal-actions">
+                <button className="ghost" disabled={stackDeleting} onClick={resetDeleteStackState}>Cancel</button>
+                <button className="danger" disabled={stackDeleting} onClick={handleDeleteStack}>
+                  {stackDeleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {stackModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>{stackEditingSlug ? "Edit Stack" : "New Stack"}</h3>
+              </div>
+              <div className="modal-body modal-grid">
+                <label>
+                  Name
+                  <input
+                    type="text"
+                    value={stackName}
+                    onChange={e => {
+                      setStackName(e.target.value);
+                      if (!stackSlugTouched) {
+                        setStackSlugInput(slugify(e.target.value, ""));
+                      }
+                    }}
+                  />
+                </label>
+                <label>
+                  Slug (optional)
+                  <input
+                    type="text"
+                    value={stackSlugValue}
+                    disabled={Boolean(stackEditingSlug)}
+                    onChange={e => {
+                      setStackSlugTouched(true);
+                      setStackSlugInput(slugify(e.target.value, ""));
+                    }}
+                  />
+                </label>
+                <label>
+                  Interval (s)
+                  <input
+                    type="number"
+                    min={1}
+                    value={stackInterval}
+                    onChange={e => setStackInterval(Number(e.target.value) || 0)}
+                  />
+                </label>
+                <label>
+                  Mode
+                  <input
+                    type="text"
+                    value={stackMode}
+                    onChange={e => setStackMode(e.target.value)}
+                    placeholder="cycle"
+                  />
+                </label>
+                <div className="full-row">
+                  <label>
+                    Add widgets
+                    <div className="widget-picker">
+                      <select
+                        value={stackWidgetSelect}
+                        onChange={e => setStackWidgetSelect(e.target.value)}
+                      >
+                        <option value="">Select a widget type</option>
+                        {widgetChoices.map(type => (
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="button" onClick={handleAddStackWidget} disabled={!stackWidgetSelect}>
+                        Add
+                      </button>
+                    </div>
+                  </label>
+                  {stackWidgets.length > 0 ? (
+                    <div className="chip-row">
+                      {stackWidgets.map((w, idx) => (
+                        <span key={`${w.id}-${idx}`} className="chip">
+                          {w.type} <span className="muted">({w.id})</span>
+                          <button type="button" onClick={() => handleRemoveStackWidget(idx)} aria-label={`Remove ${w.type}`}>
+                            <ClearIcon fontSize="small" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted" style={{ margin: "6px 0 0" }}>No widgets selected</p>
+                  )}
+                </div>
+              </div>
+              {stackError ? <p className="error-text" style={{ marginTop: 8 }}>{stackError}</p> : null}
+              <div className="modal-actions">
+                <button
+                  className="ghost"
+                  disabled={stackSaving}
+                  onClick={() => {
+                    setStackModalOpen(false);
+                    resetStackForm();
+                  }}
+                >
+                  Cancel
+                </button>
+                <button onClick={handleSaveStack} disabled={stackSaving}>
+                  {stackSaving ? "Saving…" : stackEditingSlug ? "Save" : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </main>
+    </div>
+  );
+
+  const renderBackupsPage = () => (
+    <div className="landing-shell">
+      <SidebarNav
+        isHomeActive={false}
+        isPlaylistManagerActive={false}
+        isStacksActive={false}
+        isBackupsActive
+        buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+        version={APP_VERSION.replace(/^v/i, "")}
+        onSelectHome={handleGoHome}
+        onOpenPlaylistManager={handleOpenPlaylistManager}
+        onOpenStacks={handleOpenStacks}
+        onOpenBackups={handleOpenBackups}
+        onOpenAbout={handleOpenAbout}
+      />
+
+      <main className="landing landing-main">
+        <div className="top-bar">
+          <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
+            {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+          </button>
+        </div>
+
+        <header className="hero">
+          <div>
+            <h1>Settings</h1>
+            <p>Create backups, view logs, and access utilities.</p>
+          </div>
+        </header>
+
+        <div className="panel" style={{ marginTop: 12 }}>
+          <div className="panel-header">
+            <h3>Settings</h3>
+          </div>
+          <div className="tab-row">
+            <button className={`tab ${settingsTab === "backup" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("backup")}>Backups</button>
+            <button className={`tab ${settingsTab === "logs" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("logs")}>Logs</button>
+            <button className={`tab ${settingsTab === "tools" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("tools")}>Tools</button>
+            <button className={`tab ${settingsTab === "about" ? "active" : ""}`} type="button" onClick={() => setSettingsTab("about")}>About</button>
+          </div>
+          <div className="tab-panels">
+            {settingsTab === "backup" ? (
+              <div className="tab-panel">
+                <p className="muted" style={{ marginBottom: 8 }}>Create a backup of dashboards, widgets, themes, jobs, playlists, and stacks.</p>
+                <div className="panel-actions" style={{ marginTop: 6 }}>
+                  <button onClick={handleCreateBackup} disabled={creatingBackup}>
+                    {creatingBackup ? "Creating..." : "Create backup"}
+                  </button>
+                </div>
+                {backupsError ? <p className="error-text" style={{ marginTop: 10 }}>{backupsError}</p> : null}
+                {backupsLoading ? <p className="muted" style={{ marginTop: 10 }}>Loading backups...</p> : null}
+                {!backupsLoading && backups.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No backups made.</p> : null}
+                {!backupsLoading && backups.length > 0 ? (
+                  <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                    {backups.map(b => (
+                      <div key={b.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: "var(--control-bg)" }}>
+                        <div>
+                          <div style={{ fontWeight: 600 }}>{b.name}</div>
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            {formatBytes(b.size)} • {formatDate(b.createdAt)}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            onClick={() => handleDownloadBackup(b.name)}
+                            aria-label="Download backup"
+                            title="Download backup"
+                          >
+                            <DownloadIcon fontSize="small" />
+                          </button>
+                          <button
+                            className="danger"
+                            onClick={() => handleDeleteBackup(b.name)}
+                            aria-label="Delete backup"
+                            title="Delete backup"
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {settingsTab === "logs" ? (
+              <div className="tab-panel">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <p className="muted" style={{ marginBottom: 8, marginTop: 0 }}>Review and download server logs.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newest = logs.find(l => l.name.toLowerCase().endsWith('.log'));
+                      if (newest) {
+                        setActiveLog(newest.name);
+                        setLogStreamFresh(true);
+                      }
+                    }}
+                    disabled={!logs.some(l => l.name.toLowerCase().endsWith('.log'))}
+                    aria-label="Stream newest log"
+                    title="Stream newest log"
+                  >
+                    Stream Logs
+                  </button>
+                </div>
+                {logsError ? <p className="error-text" style={{ marginTop: 10 }}>{logsError}</p> : null}
+                {logsLoading ? <p className="muted" style={{ marginTop: 10 }}>Loading logs...</p> : null}
+                {!logsLoading && logs.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No logs found.</p> : null}
+                {!logsLoading && logs.length > 0 ? (
+                  <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                    {logs.map(log => {
+                      const isLog = log.name.toLowerCase().endsWith('.log');
+                      return (
+                        <div
+                          key={log.name}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: activeLog === log.name ? "var(--control-bg-strong, rgba(255,255,255,0.06))" : "var(--control-bg)" }}
+                        >
                           <div>
-                            <div style={{ fontWeight: 600 }}>{b.name}</div>
+                            <div style={{ fontWeight: 600 }}>{log.name}</div>
                             <div className="muted" style={{ fontSize: 12 }}>
-                              {formatBytes(b.size)} • {formatDate(b.createdAt)}
+                              {formatBytes(log.size)} • {formatDate(log.modifiedAt)}
                             </div>
                           </div>
                           <div style={{ display: "flex", gap: 8 }}>
                             <button
-                              onClick={() => handleDownloadBackup(b.name)}
-                              aria-label="Download backup"
-                              title="Download backup"
+                              onClick={() => {
+                                if (!isLog) return;
+                                setActiveLog(log.name);
+                                setLogStreamFresh(false);
+                              }}
+                              disabled={!isLog}
+                              aria-label={isLog ? `Open ${log.name}` : "Open disabled"}
+                              title={isLog ? "Open log" : "Not a log file"}
                             >
+                              <SearchIcon fontSize="small" />
+                            </button>
+                            <button onClick={e => { e.stopPropagation(); handleDownloadLog(log.name); }} aria-label="Download log" title="Download log">
                               <DownloadIcon fontSize="small" />
                             </button>
-                            <button
-                              className="danger"
-                              onClick={() => handleDeleteBackup(b.name)}
-                              aria-label="Delete backup"
-                              title="Delete backup"
-                            >
+                            <button className="danger" onClick={e => { e.stopPropagation(); handleDeleteLog(log.name); }} aria-label="Delete log" title="Delete log">
                               <DeleteIcon fontSize="small" />
                             </button>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
+                {activeLog ? (
+                  <div className="panel" style={{ marginTop: 16 }}>
+                    <div className="panel-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: 16 }}>Live log: {activeLog}</h3>
+                        {logStreamFresh ? (
+                          <span className="muted">{logStreaming ? "Streaming…" : "Streaming paused"}</span>
+                        ) : null}
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="ghost" onClick={() => { setActiveLog(null); setLogStreamFresh(false); }}>Close</button>
+                      </div>
+                    </div>
+                    {logStreamError ? <p className="error-text" style={{ marginTop: 8 }}>{logStreamError}</p> : null}
+                    <div style={{ marginTop: 8, maxHeight: 320, overflow: "auto", background: "var(--control-bg)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 10, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, lineHeight: 1.45 }}>
+                      {logStream.length === 0 ? <span className="muted">Waiting for log data…</span> : null}
+                      {logStream.map((line, idx) => (
+                        <div key={idx} style={{ whiteSpace: "pre-wrap" }}>{line}</div>
                       ))}
                     </div>
-                  ) : null}
-                </div>
-              ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
-              {settingsTab === "logs" ? (
-                <div className="tab-panel">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                    <p className="muted" style={{ marginBottom: 8, marginTop: 0 }}>Review and download server logs.</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const newest = logs.find(l => l.name.toLowerCase().endsWith('.log'));
-                        if (newest) {
-                          setActiveLog(newest.name);
-                          setLogStreamFresh(true);
-                        }
-                      }}
-                      disabled={!logs.some(l => l.name.toLowerCase().endsWith('.log'))}
-                      aria-label="Stream newest log"
-                      title="Stream newest log"
+            {settingsTab === "tools" ? (
+              <div className="tab-panel">
+                <div className="panel-header" style={{ padding: 0, marginBottom: 10 }}>
+                  <h3 style={{ margin: 0, fontSize: 16 }}>Event Testing</h3>
+                </div>
+                <div className="panel-grid">
+                  <label>
+                    Widget
+                    <select
+                      value={rootTargetWidget}
+                      onChange={e => setRootTargetWidget(e.target.value)}
                     >
-                      Stream Logs
+                      <option value="">Select a widget</option>
+                      {dashboards.flatMap(d =>
+                        d.widgets.map(w => (
+                          <option key={`${d.slug}-${w.id}`} value={w.id}>
+                            {d.name}: {w.id}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                  <label>
+                    Message
+                    <input
+                      type="text"
+                      placeholder="message or JSON payload"
+                      value={rootMessage}
+                      onChange={e => setRootMessage(e.target.value)}
+                    />
+                  </label>
+                  <div className="panel-actions">
+                    <button
+                      onClick={() => {
+                        const widgetId = rootTargetWidget || undefined;
+                        sendDemoEvent(widgetId, rootMessage.trim() || undefined);
+                      }}
+                    >
+                      Send event
                     </button>
                   </div>
-                  {logsError ? <p className="error-text" style={{ marginTop: 10 }}>{logsError}</p> : null}
-                  {logsLoading ? <p className="muted" style={{ marginTop: 10 }}>Loading logs...</p> : null}
-                  {!logsLoading && logs.length === 0 ? <p className="muted" style={{ marginTop: 10 }}>No logs found.</p> : null}
-                  {!logsLoading && logs.length > 0 ? (
-                    <div className="backup-list" style={{ marginTop: 10, display: "grid", gap: 8 }}>
-                      {logs.map(log => {
-                        const isLog = log.name.toLowerCase().endsWith('.log');
-                        return (
-                          <div
-                            key={log.name}
-                            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid var(--border-color)", borderRadius: 10, padding: "8px 10px", background: activeLog === log.name ? "var(--control-bg-strong, rgba(255,255,255,0.06))" : "var(--control-bg)" }}
-                          >
-                            <div>
-                              <div style={{ fontWeight: 600 }}>{log.name}</div>
-                              <div className="muted" style={{ fontSize: 12 }}>
-                                {formatBytes(log.size)} • {formatDate(log.modifiedAt)}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <button
-                                onClick={() => {
-                                  if (!isLog) return;
-                                  setActiveLog(log.name);
-                                  setLogStreamFresh(false);
-                                }}
-                                disabled={!isLog}
-                                aria-label={isLog ? `Open ${log.name}` : "Open disabled"}
-                                title={isLog ? "Open log" : "Not a log file"}
-                              >
-                                <SearchIcon fontSize="small" />
-                              </button>
-                              <button onClick={e => { e.stopPropagation(); handleDownloadLog(log.name); }} aria-label="Download log" title="Download log">
-                                <DownloadIcon fontSize="small" />
-                              </button>
-                              <button className="danger" onClick={e => { e.stopPropagation(); handleDeleteLog(log.name); }} aria-label="Delete log" title="Delete log">
-                                <DeleteIcon fontSize="small" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-                  {activeLog ? (
-                    <div className="panel" style={{ marginTop: 16 }}>
-                      <div className="panel-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <div>
-                          <h3 style={{ margin: 0, fontSize: 16 }}>Live log: {activeLog}</h3>
-                          {logStreamFresh ? (
-                            <span className="muted">{logStreaming ? "Streaming…" : "Streaming paused"}</span>
-                          ) : null}
-                        </div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <button className="ghost" onClick={() => { setActiveLog(null); setLogStreamFresh(false); }}>Close</button>
-                        </div>
-                      </div>
-                      {logStreamError ? <p className="error-text" style={{ marginTop: 8 }}>{logStreamError}</p> : null}
-                      <div style={{ marginTop: 8, maxHeight: 320, overflow: "auto", background: "var(--control-bg)", border: "1px solid var(--border-color)", borderRadius: 8, padding: 10, fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace", fontSize: 12, lineHeight: 1.45 }}>
-                        {logStream.length === 0 ? <span className="muted">Waiting for log data…</span> : null}
-                        {logStream.map((line, idx) => (
-                          <div key={idx} style={{ whiteSpace: "pre-wrap" }}>{line}</div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
-              ) : null}
+              </div>
+            ) : null}
 
-              {settingsTab === "tools" ? (
-                <div className="tab-panel">
-                  <div className="panel-header" style={{ padding: 0, marginBottom: 10 }}>
-                    <h3 style={{ margin: 0, fontSize: 16 }}>Event Testing</h3>
-                  </div>
-                  <div className="panel-grid">
-                    <label>
-                      Widget
-                      <select
-                        value={rootTargetWidget}
-                        onChange={e => setRootTargetWidget(e.target.value)}
-                      >
-                        <option value="">Select a widget</option>
-                        {dashboards.flatMap(d =>
-                          d.widgets.map(w => (
-                            <option key={`${d.slug}-${w.id}`} value={w.id}>
-                              {d.name}: {w.id}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    </label>
-                    <label>
-                      Message
-                      <input
-                        type="text"
-                        placeholder="message or JSON payload"
-                        value={rootMessage}
-                        onChange={e => setRootMessage(e.target.value)}
-                      />
-                    </label>
-                    <div className="panel-actions">
-                      <button
-                        onClick={() => {
-                          const widgetId = rootTargetWidget || undefined;
-                          sendDemoEvent(widgetId, rootMessage.trim() || undefined);
-                        }}
-                      >
-                        Send event
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {settingsTab === "about" ? (
-                <div className="tab-panel">
-                  <h2 style={{ margin: 0, marginBottom: 24 }}>About Dashino</h2>
-                  <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
-                    <tbody>
-                      {infoTableRows.map(([label, value]) => (
-                        <tr key={label} style={aboutRowStyle}>
-                          <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
-                          <td style={{ padding: "14px 0" }}>{value}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <h2 style={{ margin: 0, marginTop: 28, marginBottom: 18 }}>Getting Support</h2>
-                  <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
-                    <tbody>
-                      {supportTableRows.map(([label, value]) => (
-                        <tr key={label} style={aboutRowStyle}>
-                          <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
-                          <td style={{ padding: "14px 0" }}>{value}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <h2 style={{ margin: 0, marginTop: 28 }}>Support Dashino</h2>
-                  <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
-                    <tbody>
-                      <tr style={aboutRowStyle}>
-                        <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>Buy me a coffee</td>
-                        <td style={{ padding: "14px 0" }}>
-                          <a href="https://ko-fi.com/B0B21T1VYK" target="_blank" rel="noreferrer">
-                            <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Ko-fi" style={{ height: 28 }} />
-                          </a>
-                        </td>
+            {settingsTab === "about" ? (
+              <div className="tab-panel">
+                <h2 style={{ margin: 0, marginBottom: 24 }}>About Dashino</h2>
+                <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
+                  <tbody>
+                    {infoTableRows.map(([label, value]) => (
+                      <tr key={label} style={aboutRowStyle}>
+                        <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
+                        <td style={{ padding: "14px 0" }}>{value}</td>
                       </tr>
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+                <h2 style={{ margin: 0, marginTop: 28, marginBottom: 18 }}>Getting Support</h2>
+                <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: 28 }}>
+                  <tbody>
+                    {supportTableRows.map(([label, value]) => (
+                      <tr key={label} style={aboutRowStyle}>
+                        <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>{label}</td>
+                        <td style={{ padding: "14px 0" }}>{value}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <h2 style={{ margin: 0, marginTop: 28 }}>Support Dashino</h2>
+                <table className="info-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}>
+                  <tbody>
+                    <tr style={aboutRowStyle}>
+                      <td style={{ padding: "14px 0", fontWeight: 600, width: "40%" }}>Buy me a coffee</td>
+                      <td style={{ padding: "14px 0" }}>
+                        <a href="https://ko-fi.com/B0B21T1VYK" target="_blank" rel="noreferrer">
+                          <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="Ko-fi" style={{ height: 28 }} />
+                        </a>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
           </div>
-        </main>
-      </div>
-    );
-  }
+        </div>
+      </main>
+    </div>
+  );
 
-  if (isPlaylistManager) {
-    return (
-      <div className="landing-shell">
-        <SidebarNav
-          isHomeActive={false}
-          isPlaylistManagerActive
-          isStacksActive={false}
-          isBackupsActive={false}
-          buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
-          version={APP_VERSION.replace(/^v/i, "")}
-          onSelectHome={handleGoHome}
-          onOpenPlaylistManager={handleOpenPlaylistManager}
-          onOpenStacks={handleOpenStacks}
-          onOpenBackups={handleOpenBackups}
-          onOpenAbout={handleOpenAbout}
-        />
+  const renderPlaylistManagerPage = () => (
+    <div className="landing-shell">
+      <SidebarNav
+        isHomeActive={false}
+        isPlaylistManagerActive
+        isStacksActive={false}
+        isBackupsActive={false}
+        buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+        version={APP_VERSION.replace(/^v/i, "")}
+        onSelectHome={handleGoHome}
+        onOpenPlaylistManager={handleOpenPlaylistManager}
+        onOpenStacks={handleOpenStacks}
+        onOpenBackups={handleOpenBackups}
+        onOpenAbout={handleOpenAbout}
+      />
 
-        <main className="landing landing-main">
-          <div className="top-bar">
-            <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
-            </button>
+      <main className="landing landing-main">
+        <div className="top-bar">
+          <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
+            {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+          </button>
+        </div>
+
+        <header className="hero">
+          <div>
+            <h1>Dashino Playlists</h1>
+            <p>Rotate a set of dashboards automatically.</p>
           </div>
+          <div className="hero-actions">
+            <button onClick={() => { resetEditor(); setPlaylistModalOpen(true); }}>New Playlist</button>
+          </div>
+        </header>
 
-          <header className="hero">
-            <div>
-              <h1>Dashino Playlists</h1>
-              <p>Rotate a set of dashboards automatically.</p>
-            </div>
-            <div className="hero-actions">
-              <button onClick={() => { resetEditor(); setPlaylistModalOpen(true); }}>New Playlist</button>
-            </div>
-          </header>
+        {dashboardsError ? <p className="error-text">{dashboardsError}</p> : null}
+        {playlistsError ? <p className="error-text">{playlistsError}</p> : null}
 
-          {dashboardsError ? <p className="error-text">{dashboardsError}</p> : null}
-          {playlistsError ? <p className="error-text">{playlistsError}</p> : null}
-
-          <section className="panel">
-            <div className="panel-header">
-              <h3>Playlists</h3>
-            </div>
-            {loadingPlaylists ? (
-              <p className="muted">Loading playlists…</p>
-            ) : playlists.length === 0 ? (
-              <p className="muted">No playlists configured.</p>
-            ) : (
-              <div className="playlist-list">
-                {playlists.map(p => (
-                  <div key={p.slug} className="playlist-row">
-                    <div>
-                      <div className="playlist-name">{p.name}</div>
-                      <div className="playlist-meta">{p.dashboards.length} dashboards · {Math.round(p.rotationSeconds)}s</div>
-                    </div>
-                    <div className="playlist-actions">
-                      <button onClick={() => handlePlaylistStart(p.slug)} aria-label={`Run ${p.name}`}>
-                        <PlayArrowIcon fontSize="small" />
-                      </button>
-                      <button onClick={() => handleEditPlaylist(p)} aria-label={`Edit ${p.name}`}>
-                        <EditIcon fontSize="small" />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingSlug(p.slug);
-                          openDeletePlaylist(p.slug, p.name);
-                        }}
-                        disabled={deletingPlaylist && editingSlug === p.slug}
-                        className="danger icon"
-                        aria-label={`Delete ${p.name}`}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </button>
-                    </div>
+        <section className="panel">
+          <div className="panel-header">
+            <h3>Playlists</h3>
+          </div>
+          {loadingPlaylists ? (
+            <p className="muted">Loading playlists…</p>
+          ) : playlists.length === 0 ? (
+            <p className="muted">No playlists configured.</p>
+          ) : (
+            <div className="playlist-list">
+              {playlists.map(p => (
+                <div key={p.slug} className="playlist-row">
+                  <div>
+                    <div className="playlist-name">{p.name}</div>
+                    <div className="playlist-meta">{p.dashboards.length} dashboards · {Math.round(p.rotationSeconds)}s</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                  <div className="playlist-actions">
+                    <button onClick={() => handlePlaylistStart(p.slug)} aria-label={`Run ${p.name}`}>
+                      <PlayArrowIcon fontSize="small" />
+                    </button>
+                    <button onClick={() => handleEditPlaylist(p)} aria-label={`Edit ${p.name}`}>
+                      <EditIcon fontSize="small" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingSlug(p.slug);
+                        openDeletePlaylist(p.slug, p.name);
+                      }}
+                      disabled={deletingPlaylist && editingSlug === p.slug}
+                      className="danger icon"
+                      aria-label={`Delete ${p.name}`}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
-          {deletePlaylistSlug ? (
-            <div className="modal-backdrop" role="dialog" aria-modal="true">
-              <div className="modal">
-                <div className="modal-header">
-                  <h3>Delete Playlist</h3>
-                </div>
-                <div className="modal-body">
-                  <p>Are you sure you want to delete “{deletePlaylistName || deletePlaylistSlug}”?</p>
-                  <p className="muted">This only removes the playlist. Dashboards will remain untouched.</p>
-                  {deletePlaylistError ? <p className="error-text" style={{ marginTop: 8 }}>{deletePlaylistError}</p> : null}
-                </div>
-                <div className="modal-actions">
-                  <button className="ghost" disabled={deletingPlaylist} onClick={resetDeletePlaylistState}>Cancel</button>
-                  <button className="danger" disabled={deletingPlaylist} onClick={handleDeletePlaylist}>
-                    {deletingPlaylist ? "Deleting…" : "Delete"}
-                  </button>
-                </div>
+        {deletePlaylistSlug ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>Delete Playlist</h3>
+              </div>
+              <div className="modal-body">
+                <p>Are you sure you want to delete “{deletePlaylistName || deletePlaylistSlug}”?</p>
+                <p className="muted">This only removes the playlist. Dashboards will remain untouched.</p>
+                {deletePlaylistError ? <p className="error-text" style={{ marginTop: 8 }}>{deletePlaylistError}</p> : null}
+              </div>
+              <div className="modal-actions">
+                <button className="ghost" disabled={deletingPlaylist} onClick={resetDeletePlaylistState}>Cancel</button>
+                <button className="danger" disabled={deletingPlaylist} onClick={handleDeletePlaylist}>
+                  {deletingPlaylist ? "Deleting…" : "Delete"}
+                </button>
               </div>
             </div>
-          ) : null}
-          {playlistModalOpen ? (
-            <div className="modal-backdrop" role="dialog" aria-modal="true">
-              <div className="modal">
-                <div className="modal-header">
-                  <h3>{editingSlug ? "Edit Playlist" : "New Playlist"}</h3>
-                </div>
-                <div className="modal-body">
-                  <PlaylistEditor
-                    name={editorName}
-                    slug={playlistSlugValue}
-                    rotationSeconds={editorRotation}
-                    dashboards={dashboards}
-                    selectedDashboards={editorDashboards}
-                    error={editorError}
-                    isSaving={savingPlaylist}
-                    isDeleting={deletingPlaylist}
-                    onNameChange={value => {
-                      setEditorName(value);
-                      if (!slugTouched) {
-                        setEditorSlug(slugify(value, ""));
-                      }
-                    }}
-                    onSlugChange={value => {
-                      setSlugTouched(true);
-                      setEditorSlug(value);
-                    }}
-                    onRotationChange={value => setEditorRotation(value)}
-                    onToggleDashboard={handleToggleDashboardSelection}
-                    onMoveDashboard={moveDashboardInEditor}
-                    onSave={handleSavePlaylist}
-                    onCancel={resetEditor}
-                    onDelete={editingSlug ? () => openDeletePlaylist(editingSlug, editorName || editingSlug) : undefined}
-                    canDelete={Boolean(editingSlug)}
-                  />
-                </div>
+          </div>
+        ) : null}
+        {playlistModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>{editingSlug ? "Edit Playlist" : "New Playlist"}</h3>
+              </div>
+              <div className="modal-body">
+                <PlaylistEditor
+                  name={editorName}
+                  slug={playlistSlugValue}
+                  rotationSeconds={editorRotation}
+                  dashboards={dashboards}
+                  selectedDashboards={editorDashboards}
+                  error={editorError}
+                  isSaving={savingPlaylist}
+                  isDeleting={deletingPlaylist}
+                  onNameChange={value => {
+                    setEditorName(value);
+                    if (!slugTouched) {
+                      setEditorSlug(slugify(value, ""));
+                    }
+                  }}
+                  onSlugChange={value => {
+                    setSlugTouched(true);
+                    setEditorSlug(value);
+                  }}
+                  onRotationChange={value => setEditorRotation(value)}
+                  onToggleDashboard={handleToggleDashboardSelection}
+                  onMoveDashboard={moveDashboardInEditor}
+                  onSave={handleSavePlaylist}
+                  onCancel={resetEditor}
+                  onDelete={editingSlug ? () => openDeletePlaylist(editingSlug, editorName || editingSlug) : undefined}
+                  canDelete={Boolean(editingSlug)}
+                />
               </div>
             </div>
-          ) : null}
+          </div>
+        ) : null}
+      </main>
+    </div>
+  );
 
-        </main>
-      </div>
-    );
-  }
-
-  return (
+  const renderLandingPage = () => (
     <div className="landing-shell">
       <SidebarNav
         isHomeActive={!isPlaylistManager && !isBackupsPage && !isStacksPage}
@@ -1851,11 +1833,11 @@ function App() {
       />
 
       <main className="landing landing-main">
-          <div className="top-bar">
-            <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
-              {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
-            </button>
-          </div>
+        <div className="top-bar">
+          <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
+            {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+          </button>
+        </div>
 
         {notFound ? (
           <header className="hero">
@@ -2013,20 +1995,20 @@ function App() {
                       </button>
                     </div>
                   </label>
-                    {createWidgets.length > 0 ? (
-                      <div className="chip-row">
-                        {createWidgets.map((item, idx) => (
-                          <span key={`${item.type}-${item.stackSlug || idx}`} className="chip">
-                            {item.type}{item.stackSlug ? ` • ${item.stackSlug}` : ""}
-                            <button type="button" onClick={() => handleRemoveWidget(idx)} aria-label={`Remove ${item.type}`}>
-                              <ClearIcon fontSize="small" />
-                            </button>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="muted" style={{ margin: "6px 0 0" }}>No widgets selected</p>
-                    )}
+                  {createWidgets.length > 0 ? (
+                    <div className="chip-row">
+                      {createWidgets.map((item, idx) => (
+                        <span key={`${item.type}-${item.stackSlug || idx}`} className="chip">
+                          {item.type}{item.stackSlug ? ` • ${item.stackSlug}` : ""}
+                          <button type="button" onClick={() => handleRemoveWidget(idx)} aria-label={`Remove ${item.type}`}>
+                            <ClearIcon fontSize="small" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="muted" style={{ margin: "6px 0 0" }}>No widgets selected</p>
+                  )}
                 </div>
               </div>
               {createError ? <p className="error-text" style={{ marginTop: 8 }}>{createError}</p> : null}
@@ -2195,10 +2177,43 @@ function App() {
             </div>
           </div>
         ) : null}
-
       </main>
     </div>
   );
+
+  if (activePlaylistSlug) {
+    return (
+      <div className="dashboard">
+        <Suspense fallback={<div className="panel"><p>Loading playlist…</p></div>}>
+          <PlaylistView slug={activePlaylistSlug} apiOrigin={apiOrigin} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  if (selectedSlug && currentDashboard) {
+    return (
+      <div className="layout dashboard">
+        <Suspense fallback={<section className="panel"><p>Loading dashboard…</p></section>}>
+          <DashboardView dashboard={currentDashboard} apiOrigin={apiOrigin} onConnectionChange={() => {}} />
+        </Suspense>
+      </div>
+    );
+  }
+
+
+  if (isStacksPage) {
+    return renderStacksPage();
+  }
+  if (isBackupsPage) {
+    return renderBackupsPage();
+  }
+
+  if (isPlaylistManager) {
+    return renderPlaylistManagerPage();
+  }
+
+  return renderLandingPage();
 }
 
 export default App;
