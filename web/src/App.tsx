@@ -1020,7 +1020,11 @@ function App() {
     setStackSaving(true);
     setStackError(null);
     try {
-      const res = await fetch(`${apiOrigin}/api/stacks/${encodeURIComponent(stackEditingSlug || slug)}`, {
+      const target = stackEditingSlug
+        ? `${apiOrigin}/api/stacks/${encodeURIComponent(stackEditingSlug)}`
+        : `${apiOrigin}/api/stacks`;
+
+      const res = await fetch(target, {
         method: stackEditingSlug ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, slug: stackEditingSlug || slug, intervalMs, mode, widgets: widgetsPayload })
