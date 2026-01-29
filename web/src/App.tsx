@@ -9,7 +9,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import StorageIcon from "@mui/icons-material/Storage";
-import type { Dashboard, Playlist, StackDefinition } from "./types";
+import type { Dashboard, Playlist, StackDefinition, WidgetInstance, RssWidgetInstanceConfig, ImageWidgetInstanceConfig } from "./types";
 import SidebarNav from "./components/SidebarNav";
 import PlaylistEditor from "./components/PlaylistEditor";
 import slugify from "./utils/slugify";
@@ -21,8 +21,11 @@ const PlaylistView = lazy(() => import("./PlaylistView"));
 type Appearance = "light" | "dark";
 const PLAYLISTS_ROUTE = "playlists";
 const STACKS_ROUTE = "stacks";
+// Avoid collision with runtime /widgets/* asset route
+const WIDGETS_ROUTE = "widget-instances";
 const BACKUPS_ROUTE = "settings";
 const APP_VERSION = "0.1.0";
+const INSTANCE_PREFIX = "instance:";
 
 // Default widgets mirror the demotv dashboard so empty installs still load its layout
 const DEFAULT_WIDGET_TYPES = [
@@ -57,7 +60,9 @@ type BackupEntry = {
 
 type WidgetDraft = {
   type: string;
+  id?: string;
   stackSlug?: string;
+  instanceId?: string;
 };
 
 type LogEntry = {
@@ -84,6 +89,11 @@ function App() {
   const [stacksLoaded, setStacksLoaded] = useState(false);
   const [stacksError, setStacksError] = useState<string | null>(null);
 
+  const [widgetInstances, setWidgetInstances] = useState<WidgetInstance[]>([]);
+  const [loadingWidgetInstances, setLoadingWidgetInstances] = useState(true);
+  const [widgetInstancesLoaded, setWidgetInstancesLoaded] = useState(false);
+  const [widgetInstancesError, setWidgetInstancesError] = useState<string | null>(null);
+
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [activePlaylistSlug, setActivePlaylistSlug] = useState<string | null>(null);
   const [pathSlug, setPathSlug] = useState<string | null>(() => {
@@ -93,6 +103,7 @@ function App() {
   const [notFound, setNotFound] = useState(false);
   const isPlaylistManager = pathSlug === PLAYLISTS_ROUTE;
   const isStacksPage = pathSlug === STACKS_ROUTE;
+  const isWidgetsPage = pathSlug === WIDGETS_ROUTE;
   const isBackupsPage = pathSlug === BACKUPS_ROUTE;
 
   const [rootTargetWidget, setRootTargetWidget] = useState("");
@@ -154,6 +165,23 @@ function App() {
     return Array.from(new Set([...DEFAULT_WIDGET_TYPES, ...discovered])).sort();
   }, [dashboards]);
 
+  const widgetInstanceMap = useMemo(() => {
+    const map = new Map<string, WidgetInstance>();
+    widgetInstances.forEach(inst => map.set(inst.id, inst));
+    return map;
+  }, [widgetInstances]);
+
+  const [resolvedInstanceMap, setResolvedInstanceMap] = useState<Map<string, WidgetInstance>>(new Map());
+
+  const widgetInstanceOptions = useMemo(() => (
+    widgetInstances.map(inst => ({
+      value: `${INSTANCE_PREFIX}${inst.id}`,
+      label: `${inst.name || inst.id} - ${inst.type}`,
+      id: inst.id,
+      type: inst.type
+    }))
+  ), [widgetInstances]);
+
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [editorName, setEditorName] = useState("");
   const [editorSlug, setEditorSlug] = useState("");
@@ -183,6 +211,27 @@ function App() {
   const [stackWidgets, setStackWidgets] = useState<StackDefinition["widgets"]>([]);
   const [stackWidgetSelect, setStackWidgetSelect] = useState("");
   const [stackEditingSlug, setStackEditingSlug] = useState<string | null>(null);
+
+  const [widgetModalOpen, setWidgetModalOpen] = useState(false);
+  const [widgetName, setWidgetName] = useState("");
+  const [widgetIdInput, setWidgetIdInput] = useState("");
+  const [widgetIdTouched, setWidgetIdTouched] = useState(false);
+  const [widgetType, setWidgetType] = useState("rss");
+  const [widgetFeeds, setWidgetFeeds] = useState<RssWidgetInstanceConfig["feeds"]>([]);
+  const [feedNameInput, setFeedNameInput] = useState("");
+  const [feedUrlInput, setFeedUrlInput] = useState("");
+  const [widgetMaxItems, setWidgetMaxItems] = useState<number | "">(12);
+  const [widgetImages, setWidgetImages] = useState<ImageWidgetInstanceConfig["images"]>([]);
+  const [imageUrlInput, setImageUrlInput] = useState("");
+  const [imageCaptionInput, setImageCaptionInput] = useState("");
+  const [imageFitInput, setImageFitInput] = useState<"cover" | "contain">("cover");
+  const [widgetSaveError, setWidgetSaveError] = useState<string | null>(null);
+  const [widgetSaving, setWidgetSaving] = useState(false);
+  const [widgetEditingId, setWidgetEditingId] = useState<string | null>(null);
+  const [widgetDeleteId, setWidgetDeleteId] = useState<string | null>(null);
+  const [widgetDeleteName, setWidgetDeleteName] = useState("");
+  const [widgetDeleting, setWidgetDeleting] = useState(false);
+  const [widgetDeleteError, setWidgetDeleteError] = useState<string | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -291,6 +340,90 @@ function App() {
   }, [dashboards, selectedSlug]);
 
   useEffect(() => {
+    const dashboard = currentDashboard;
+    const ids = new Set<string>();
+    dashboard?.widgets?.forEach(w => {
+      const raw = typeof w.instanceId === "string" ? w.instanceId.trim() : "";
+      if (raw) ids.add(raw);
+    });
+
+    if (!dashboard || ids.size === 0) {
+      setResolvedInstanceMap(new Map());
+      return;
+    }
+
+    const inlineMap = new Map<string, WidgetInstance>();
+    dashboard.widgets?.forEach(w => {
+      if (w.instanceId && w.instance) {
+        inlineMap.set(w.instanceId, w.instance);
+      }
+    });
+    if (inlineMap.size > 0 && inlineMap.size === ids.size) {
+      setResolvedInstanceMap(inlineMap);
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const run = async () => {
+      const pendingIds = Array.from(ids).filter(id => !inlineMap.has(id));
+      if (pendingIds.length === 0) {
+        setResolvedInstanceMap(inlineMap);
+        return;
+      }
+
+      const search = pendingIds
+        .map(id => `ids=${encodeURIComponent(id)}`)
+        .join("&");
+      const url = `${apiOrigin}/api/widget-instances/resolve${search ? `?${search}` : ""}`;
+
+      try {
+        const res = await fetch(url, { cache: "no-store", signal: controller.signal });
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        const body = await res.json();
+        if (cancelled) return;
+        const map = new Map<string, WidgetInstance>(inlineMap);
+        (body.instances ?? []).forEach((inst: WidgetInstance) => map.set(inst.id, inst));
+        if (widgetInstanceMap.size > 0) {
+          ids.forEach(id => {
+            if (map.has(id)) return;
+            const fallback = widgetInstanceMap.get(id);
+            if (fallback) map.set(id, fallback);
+          });
+        }
+        setResolvedInstanceMap(map);
+      } catch (err) {
+        if (cancelled) return;
+        const fallback = new Map<string, WidgetInstance>(inlineMap);
+        ids.forEach(id => {
+          const inst = widgetInstanceMap.get(id);
+          if (inst) fallback.set(id, inst);
+        });
+        setResolvedInstanceMap(fallback);
+        console.error("Failed to resolve widget instances", err);
+      }
+    };
+
+    run().catch(err => console.error("Failed to resolve widget instances", err));
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [apiOrigin, currentDashboard, widgetInstanceMap]);
+
+  const resolvedDashboard = useMemo(() => {
+    if (!currentDashboard) return undefined;
+    if (resolvedInstanceMap.size === 0) return currentDashboard;
+    const widgets = currentDashboard.widgets.map(w => {
+      const instance = w.instanceId ? resolvedInstanceMap.get(w.instanceId) : undefined;
+      return instance ? { ...w, type: instance.type, instance } : w;
+    });
+    return { ...currentDashboard, widgets } as Dashboard;
+  }, [currentDashboard, resolvedInstanceMap]);
+
+  useEffect(() => {
     const handlePopState = () => {
       const slug = window.location.pathname.replace(/^\//, "").trim();
       setPathSlug(slug || null);
@@ -320,7 +453,7 @@ function App() {
       setLoadingDashboards(true);
       setDashboardsError(null);
       try {
-        const res = await fetch(`${apiOrigin}/api/dashboards`, { cache: "no-store" });
+        const res = await fetch(`${apiOrigin}/api/dashboards?resolveInstances=1`, { cache: "no-store" });
         const body = await res.json();
         if (cancelled) return;
         const loaded: Dashboard[] = body.dashboards ?? [];
@@ -371,7 +504,7 @@ function App() {
       setLoadingStacks(true);
       setStacksError(null);
       try {
-        const res = await fetch(`${apiOrigin}/api/stacks`, { cache: "no-store" });
+        const res = await fetch(`${apiOrigin}/api/stacks?resolveInstances=1`, { cache: "no-store" });
         const body = await res.json();
         setStacks(body.stacks ?? []);
         setStacksLoaded(true);
@@ -388,6 +521,29 @@ function App() {
   useEffect(() => {
     fetchStacks().catch(err => console.error("Failed to load stacks", err));
   }, [fetchStacks]);
+
+  const fetchWidgetInstances = useMemo(() => {
+    return async () => {
+      setLoadingWidgetInstances(true);
+      setWidgetInstancesError(null);
+      try {
+        const res = await fetch(`${apiOrigin}/api/widget-instances`, { cache: "no-store" });
+        const body = await res.json();
+        setWidgetInstances(body.instances ?? []);
+        setWidgetInstancesLoaded(true);
+      } catch (err) {
+        setWidgetInstancesError("Failed to load widgets");
+        setWidgetInstancesLoaded(true);
+        console.error("Failed to load widget instances", err);
+      } finally {
+        setLoadingWidgetInstances(false);
+      }
+    };
+  }, [apiOrigin]);
+
+  useEffect(() => {
+    fetchWidgetInstances().catch(err => console.error("Failed to load widget instances", err));
+  }, [fetchWidgetInstances]);
 
   useEffect(() => {
     if (!isBackupsPage) return;
@@ -460,6 +616,13 @@ function App() {
     }
 
     if (pathSlug === STACKS_ROUTE) {
+      setSelectedSlug(null);
+      setActivePlaylistSlug(null);
+      setNotFound(false);
+      return;
+    }
+
+    if (pathSlug === WIDGETS_ROUTE) {
       setSelectedSlug(null);
       setActivePlaylistSlug(null);
       setNotFound(false);
@@ -660,7 +823,9 @@ function App() {
       return;
     }
 
-    const sanitizedWidgets = editWidgets.map(w => {
+    const sanitizedWidgets: Dashboard["widgets"] = [];
+
+    for (const w of editWidgets) {
       const type = slugify(w.type, w.type);
       const id = w.id && typeof w.id === "string" ? w.id.trim() : type;
       const pos = w.position || {};
@@ -670,8 +835,26 @@ function App() {
       if (Number.isFinite(pos.x)) position.x = Number(pos.x);
       if (Number.isFinite(pos.y)) position.y = Number(pos.y);
       const stackSlug = w.stack?.slug ? slugify(w.stack.slug, w.stack.slug) : undefined;
-      return { id, type, position, stack: stackSlug ? { slug: stackSlug } : undefined } as Dashboard["widgets"][number];
-    });
+
+      const instanceId = w.instanceId ? slugify(w.instanceId, w.instanceId) : undefined;
+      if (w.instanceId && !instanceId) {
+        setEditError(`Invalid widget instance id "${w.instanceId}"`);
+        return;
+      }
+      if (instanceId) {
+        const inst = widgetInstanceMap.get(instanceId);
+        if (!inst) {
+          setEditError(`Widget instance "${instanceId}" not found`);
+          return;
+        }
+        if (type !== inst.type) {
+          setEditError(`Widget instance "${instanceId}" is type ${inst.type}`);
+          return;
+        }
+      }
+
+      sanitizedWidgets.push({ id, type, position, stack: stackSlug ? { slug: stackSlug } : undefined, instanceId: instanceId || undefined } as Dashboard["widgets"][number]);
+    }
 
     setUpdatingDashboard(true);
     setEditError(null);
@@ -713,6 +896,16 @@ function App() {
     if (!raw) return;
     let stackSlug: string | undefined;
     let typeValue = raw;
+    let instanceId: string | undefined;
+    if (raw.startsWith(INSTANCE_PREFIX)) {
+      instanceId = slugify(raw.slice(INSTANCE_PREFIX.length), raw.slice(INSTANCE_PREFIX.length));
+      const instance = instanceId ? widgetInstanceMap.get(instanceId) : undefined;
+      if (!instance) {
+        setCreateError("Select a valid widget instance");
+        return;
+      }
+      typeValue = instance.type;
+    }
     if (raw.startsWith("stack:")) {
       stackSlug = slugify(raw.slice(6), raw.slice(6));
       typeValue = "stack";
@@ -720,6 +913,10 @@ function App() {
     const type = slugify(typeValue, typeValue);
     if (!type) return;
     if (stackSlug === "") stackSlug = undefined;
+    if (instanceId && createWidgets.some(w => w.id === instanceId || w.instanceId === instanceId)) {
+      setCreateError(`Widget ${instanceId} is already added`);
+      return;
+    }
     const rows = Math.max(1, Number(createRows) || 0);
     const cols = Math.max(1, Number(createColumns) || 0);
     const maxSlots = rows * cols;
@@ -728,7 +925,7 @@ function App() {
       return;
     }
     setCreateError(null);
-    setCreateWidgets(prev => [...prev, { type, stackSlug }]);
+    setCreateWidgets(prev => [...prev, { type, stackSlug, id: instanceId, instanceId }]);
     setCreateWidgetSelect("");
   };
 
@@ -741,12 +938,27 @@ function App() {
     if (!raw) return;
     let stackSlug: string | undefined;
     let typeValue = raw;
+    let instanceId: string | undefined;
+    if (raw.startsWith(INSTANCE_PREFIX)) {
+      instanceId = slugify(raw.slice(INSTANCE_PREFIX.length), raw.slice(INSTANCE_PREFIX.length));
+      const instance = instanceId ? widgetInstanceMap.get(instanceId) : undefined;
+      if (!instance) {
+        setEditError("Select a valid widget instance");
+        return;
+      }
+      typeValue = instance.type;
+    }
     if (raw.startsWith("stack:")) {
       stackSlug = slugify(raw.slice(6), raw.slice(6));
       typeValue = "stack";
     }
     const type = slugify(typeValue, typeValue);
     if (!type) return;
+
+    if (instanceId && editWidgets.some(w => w.id === instanceId || w.instanceId === instanceId)) {
+      setEditError(`Widget ${instanceId} is already added`);
+      return;
+    }
 
     setEditError(null);
 
@@ -759,9 +971,9 @@ function App() {
         counts[key] = (counts[key] ?? 0) + 1;
       });
 
-      let nextId = counts[type] ? `${type}-${counts[type] + 1}` : type;
+      let nextId = instanceId || (counts[type] ? `${type}-${counts[type] + 1}` : type);
       let attempt = counts[type] ? counts[type] + 1 : 1;
-      while (existingIds.has(nextId)) {
+      while (!instanceId && existingIds.has(nextId)) {
         attempt += 1;
         nextId = `${type}-${attempt}`;
       }
@@ -770,7 +982,8 @@ function App() {
         id: nextId,
         type,
         position: { w: 1, h: 1 },
-        stack: stackSlug ? { slug: stackSlug } : undefined
+        stack: stackSlug ? { slug: stackSlug } : undefined,
+        instanceId
       } as Dashboard["widgets"][number];
       return [...prev, nextWidget];
     });
@@ -800,19 +1013,53 @@ function App() {
     }
 
     const counts: Record<string, number> = {};
-    const widgetsPayload = createWidgets.slice(0, maxSlots).map(entry => {
+    const usedIds = new Set<string>();
+    const widgetsPayload: Dashboard["widgets"] = [];
+
+    for (const entry of createWidgets.slice(0, maxSlots)) {
       const type = slugify(entry.type, entry.type);
-      if (!type) return null;
+      if (!type) continue;
       const stackSlug = entry.stackSlug ? slugify(entry.stackSlug, entry.stackSlug) : undefined;
-      counts[type] = (counts[type] ?? 0) + 1;
-      const id = counts[type] === 1 ? type : `${type}-${counts[type]}`;
-      return {
+      const instanceId = entry.instanceId ? slugify(entry.instanceId, entry.instanceId) : undefined;
+      if (entry.instanceId && !instanceId) {
+        setCreateError(`Invalid widget instance id "${entry.instanceId}"`);
+        return;
+      }
+      if (instanceId) {
+        const inst = widgetInstanceMap.get(instanceId);
+        if (!inst) {
+          setCreateError(`Widget instance "${instanceId}" not found`);
+          return;
+        }
+        if (type !== inst.type) {
+          setCreateError(`Widget instance "${instanceId}" is type ${inst.type}`);
+          return;
+        }
+      }
+
+      let id = entry.id?.trim() || instanceId;
+      if (id) {
+        if (usedIds.has(id)) {
+          setCreateError(`Duplicate widget id "${id}"`);
+          return;
+        }
+      } else {
+        counts[type] = (counts[type] ?? 0) + 1;
+        id = counts[type] === 1 ? type : `${type}-${counts[type]}`;
+        while (usedIds.has(id)) {
+          counts[type] += 1;
+          id = counts[type] === 1 ? type : `${type}-${counts[type]}`;
+        }
+      }
+      usedIds.add(id);
+      widgetsPayload.push({
         id,
         type,
         position: { w: 1, h: 1 },
-        stack: stackSlug ? { slug: stackSlug } : undefined
-      };
-    }).filter(Boolean) as Dashboard["widgets"];
+        stack: stackSlug ? { slug: stackSlug } : undefined,
+        instanceId: instanceId || undefined
+      });
+    }
 
     setCreateError(null);
     setCreatingDashboard(true);
@@ -901,6 +1148,13 @@ function App() {
     setActivePlaylistSlug(null);
     setNotFound(false);
     navigateTo(STACKS_ROUTE);
+  };
+
+  const handleOpenWidgets = () => {
+    setSelectedSlug(null);
+    setActivePlaylistSlug(null);
+    setNotFound(false);
+    navigateTo(WIDGETS_ROUTE);
   };
 
   const handleOpenBackups = () => {
@@ -995,12 +1249,31 @@ function App() {
     const intervalSecRaw = Number(stackInterval);
     const intervalMs = Number.isFinite(intervalSecRaw) ? Math.max(1, intervalSecRaw) * 1000 : 15000;
     const mode = (stackMode || "cycle").trim() || "cycle";
-    const widgetsPayload = stackWidgets.map((w, idx) => {
+    const widgetsPayload: StackDefinition["widgets"] = [];
+
+    for (let idx = 0; idx < stackWidgets.length; idx++) {
+      const w = stackWidgets[idx];
       const type = slugify(w.type, w.type);
-      if (!type) return null;
+      if (!type) continue;
       const id = w.id && w.id.trim().length > 0 ? w.id.trim() : `${type}-${idx + 1}`;
-      return { id, type, title: w.title || w.id || w.type };
-    }).filter(Boolean) as StackDefinition["widgets"];
+      const instanceId = w.instanceId ? slugify(w.instanceId, w.instanceId) : undefined;
+      if (w.instanceId && !instanceId) {
+        setStackError(`Invalid widget instance id "${w.instanceId}"`);
+        return;
+      }
+      if (instanceId) {
+        const inst = widgetInstanceMap.get(instanceId);
+        if (!inst) {
+          setStackError(`Widget instance "${instanceId}" not found`);
+          return;
+        }
+        if (inst.type !== type) {
+          setStackError(`Widget instance "${instanceId}" is type ${inst.type}`);
+          return;
+        }
+      }
+      widgetsPayload.push({ id, type, title: w.title || w.id || w.type, instanceId });
+    }
 
     if (!name) {
       setStackError("Name is required");
@@ -1064,10 +1337,202 @@ function App() {
     }
   };
 
+  const resetWidgetForm = () => {
+    setWidgetName("");
+    setWidgetIdInput("");
+    setWidgetIdTouched(false);
+    setWidgetType("rss");
+    setWidgetFeeds([]);
+    setFeedNameInput("");
+    setFeedUrlInput("");
+    setWidgetMaxItems(12);
+    setWidgetImages([]);
+    setImageUrlInput("");
+    setImageCaptionInput("");
+    setImageFitInput("cover");
+    setWidgetSaveError(null);
+    setWidgetEditingId(null);
+  };
+
+  const widgetIdValue = widgetIdTouched ? widgetIdInput : widgetIdInput || slugify(widgetName, "");
+
+  const handleAddFeed = () => {
+    const url = feedUrlInput.trim();
+    if (!url) return;
+    try {
+      const normalized = new URL(url).toString();
+      setWidgetFeeds(prev => [...prev, { name: feedNameInput.trim() || undefined, url: normalized }]);
+      setFeedNameInput("");
+      setFeedUrlInput("");
+      setWidgetSaveError(null);
+    } catch {
+      setWidgetSaveError("Enter a valid feed URL");
+    }
+  };
+
+  const handleAddImageEntry = () => {
+    const url = imageUrlInput.trim();
+    if (!url) return;
+    try {
+      const normalized = new URL(url).toString();
+      setWidgetImages(prev => [...prev, { url: normalized, caption: imageCaptionInput.trim() || undefined, fit: imageFitInput }]);
+      setImageUrlInput("");
+      setImageCaptionInput("");
+      setImageFitInput("cover");
+      setWidgetSaveError(null);
+    } catch {
+      setWidgetSaveError("Enter a valid image URL");
+    }
+  };
+
+  const handleRemoveFeed = (idx: number) => {
+    setWidgetFeeds(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleRemoveImageEntry = (idx: number) => {
+    setWidgetImages(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSaveWidgetInstance = async () => {
+    const name = widgetName.trim();
+    const id = (widgetIdValue || slugify(widgetName, "")).trim();
+    const type = widgetType.trim() || "rss";
+    if (!name) {
+      setWidgetSaveError("Name is required");
+      return;
+    }
+    if (!id || !isValidSlug(id)) {
+      setWidgetSaveError("ID must be lowercase letters, numbers, and dashes");
+      return;
+    }
+    if (type === "rss") {
+      if (widgetFeeds.length === 0) {
+        setWidgetSaveError("Add at least one feed");
+        return;
+      }
+    } else if (type === "image") {
+      if (widgetImages.length === 0) {
+        setWidgetSaveError("Add at least one image");
+        return;
+      }
+    } else {
+      setWidgetSaveError("Unsupported widget type");
+      return;
+    }
+    const maxItemsNum = typeof widgetMaxItems === "number" ? widgetMaxItems : Number(widgetMaxItems);
+    const maxItems = Number.isFinite(maxItemsNum) ? Math.max(1, Math.min(50, maxItemsNum)) : undefined;
+
+    setWidgetSaving(true);
+    setWidgetSaveError(null);
+    try {
+      let config: RssWidgetInstanceConfig | ImageWidgetInstanceConfig;
+      if (type === "rss") {
+        config = {
+          title: name,
+          feeds: widgetFeeds,
+          maxItems
+        } satisfies RssWidgetInstanceConfig;
+      } else {
+        config = {
+          title: name,
+          images: widgetImages.map(img => ({
+            url: img.url,
+            caption: img.caption,
+            fit: img.fit === "contain" ? "contain" : "cover"
+          }))
+        } satisfies ImageWidgetInstanceConfig;
+      }
+
+      const body = {
+        id,
+        name,
+        type,
+        config
+      };
+
+      const target = widgetEditingId
+        ? `${apiOrigin}/api/widget-instances/${encodeURIComponent(widgetEditingId)}`
+        : `${apiOrigin}/api/widget-instances`;
+
+      const res = await fetch(target, {
+        method: widgetEditingId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || `Failed with status ${res.status}`);
+      }
+
+      await fetchWidgetInstances();
+      setWidgetModalOpen(false);
+      resetWidgetForm();
+    } catch (err) {
+      setWidgetSaveError(err instanceof Error ? err.message : "Failed to save widget");
+    } finally {
+      setWidgetSaving(false);
+    }
+  };
+
+  const openDeleteWidgetInstance = (id: string, name: string) => {
+    setWidgetDeleteId(id);
+    setWidgetDeleteName(name);
+    setWidgetDeleteError(null);
+  };
+
+  const handleDeleteWidgetInstance = async () => {
+    if (!widgetDeleteId) return;
+    setWidgetDeleting(true);
+    setWidgetDeleteError(null);
+    try {
+      const res = await fetch(`${apiOrigin}/api/widget-instances/${encodeURIComponent(widgetDeleteId)}`, { method: "DELETE" });
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        const usage = body?.usage;
+        const dashboards = usage?.dashboards?.map((d: { slug: string }) => d.slug).join(", ") || "";
+        const stacks = usage?.stacks?.map((s: { slug: string }) => s.slug).join(", ") || "";
+        const parts = [dashboards ? `dashboards: ${dashboards}` : "", stacks ? `stacks: ${stacks}` : ""].filter(Boolean);
+        setWidgetDeleteError(body?.error || (parts.length > 0 ? `In use by ${parts.join("; ")}` : "Instance is in use"));
+        return;
+      }
+      if (!res.ok && res.status !== 404) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Failed with status ${res.status}`);
+      }
+      await fetchWidgetInstances();
+      setWidgetDeleteId(null);
+      setWidgetDeleteName("");
+    } catch (err) {
+      setWidgetDeleteError(err instanceof Error ? err.message : "Failed to delete widget");
+    } finally {
+      setWidgetDeleting(false);
+    }
+  };
+
   const handleAddStackWidget = () => {
-    const type = slugify(stackWidgetSelect.trim(), stackWidgetSelect.trim());
+    const raw = stackWidgetSelect.trim();
+    if (!raw) return;
+    let typeValue = raw;
+    let instanceId: string | undefined;
+    let instanceName: string | undefined;
+    if (raw.startsWith(INSTANCE_PREFIX)) {
+      instanceId = slugify(raw.slice(INSTANCE_PREFIX.length), raw.slice(INSTANCE_PREFIX.length));
+      const instance = instanceId ? widgetInstanceMap.get(instanceId) : undefined;
+      if (!instance) {
+        setStackError("Select a valid widget instance");
+        return;
+      }
+      typeValue = instance.type;
+      instanceName = instance.name;
+    }
+    const type = slugify(typeValue, typeValue);
     if (!type) return;
     setStackError(null);
+    if (instanceId && stackWidgets.some(w => w.id === instanceId || w.instanceId === instanceId)) {
+      setStackError(`Widget ${instanceId} is already added`);
+      return;
+    }
     setStackWidgets(prev => {
       const counts: Record<string, number> = {};
       const ids = new Set(prev.map(w => w.id));
@@ -1075,12 +1540,12 @@ function App() {
         counts[w.type] = (counts[w.type] ?? 0) + 1;
       });
       let attempt = (counts[type] ?? 0) + 1;
-      let candidate = attempt === 1 ? type : `${type}-${attempt}`;
-      while (ids.has(candidate)) {
+      let candidate = instanceId || (attempt === 1 ? type : `${type}-${attempt}`);
+      while (!instanceId && ids.has(candidate)) {
         attempt += 1;
         candidate = `${type}-${attempt}`;
       }
-      return [...prev, { id: candidate, type, title: type }];
+      return [...prev, { id: candidate, type, title: instanceName || candidate || type, instanceId }];
     });
     setStackWidgetSelect("");
   };
@@ -1232,12 +1697,14 @@ function App() {
         isHomeActive={false}
         isPlaylistManagerActive={false}
         isStacksActive
+        isWidgetsActive={false}
         isBackupsActive={false}
         buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
         version={APP_VERSION.replace(/^v/i, "")}
         onSelectHome={handleGoHome}
         onOpenPlaylistManager={handleOpenPlaylistManager}
         onOpenStacks={handleOpenStacks}
+        onOpenWidgets={handleOpenWidgets}
         onOpenBackups={handleOpenBackups}
         onOpenAbout={handleOpenAbout}
       />
@@ -1290,7 +1757,8 @@ function App() {
                         setStackWidgets((s.widgets ?? []).map((w, idx) => ({
                           id: w.id || `${w.type}-${idx + 1}`,
                           type: w.type,
-                          title: w.title || w.id || w.type
+                          title: w.title || w.id || w.type,
+                          instanceId: w.instanceId
                         })));
                         setStackWidgetSelect("");
                         setStackModalOpen(true);
@@ -1393,11 +1861,22 @@ function App() {
                         onChange={e => setStackWidgetSelect(e.target.value)}
                       >
                         <option value="">Select a widget type</option>
-                        {widgetChoices.map(type => (
-                          <option key={type} value={type}>
-                            {type}
-                          </option>
-                        ))}
+                        <optgroup label="Widget types">
+                          {widgetChoices.map(type => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {widgetInstanceOptions.length > 0 ? (
+                          <optgroup label="Widget instances">
+                            {widgetInstanceOptions.map(opt => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
                       </select>
                       <button type="button" onClick={handleAddStackWidget} disabled={!stackWidgetSelect}>
                         Add
@@ -1443,18 +1922,305 @@ function App() {
     </div>
   );
 
+  const renderWidgetsPage = () => (
+    <div className="landing-shell">
+      <SidebarNav
+        isHomeActive={false}
+        isPlaylistManagerActive={false}
+        isStacksActive={false}
+        isWidgetsActive
+        isBackupsActive={false}
+        buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
+        version={APP_VERSION.replace(/^v/i, "")}
+        onSelectHome={handleGoHome}
+        onOpenPlaylistManager={handleOpenPlaylistManager}
+        onOpenStacks={handleOpenStacks}
+        onOpenWidgets={handleOpenWidgets}
+        onOpenBackups={handleOpenBackups}
+        onOpenAbout={handleOpenAbout}
+      />
+
+      <main className="landing landing-main">
+        <div className="top-bar">
+          <button className="appearance-toggle" onClick={toggleAppearance} aria-label="Toggle appearance">
+            {appearance === "dark" ? <LightModeIcon /> : <DarkModeIcon />}
+          </button>
+        </div>
+
+        <header className="hero">
+          <div>
+            <h1>Widgets</h1>
+            <p>Create and manage widget instances without touching the filesystem.</p>
+          </div>
+          <div className="hero-actions">
+            <button
+              onClick={() => {
+                resetWidgetForm();
+                setWidgetModalOpen(true);
+              }}
+            >
+              New Widget
+            </button>
+          </div>
+        </header>
+
+        {widgetInstancesError ? <p className="error-text">{widgetInstancesError}</p> : null}
+
+        <section className="panel">
+          <div className="panel-header">
+            <h3>Widget Instances</h3>
+          </div>
+          {loadingWidgetInstances ? (
+            <p className="muted">Loading widgets…</p>
+          ) : widgetInstances.length === 0 ? (
+            <p className="muted">No widgets yet. Create one to start.</p>
+          ) : (
+            <div className="playlist-list">
+              {widgetInstances.map(inst => {
+                const isRss = inst.type === "rss";
+                const isImage = inst.type === "image";
+                const feeds = isRss ? (inst.config as RssWidgetInstanceConfig)?.feeds ?? [] : [];
+                const maxItems = isRss ? (inst.config as RssWidgetInstanceConfig)?.maxItems : undefined;
+                const images = isImage ? (inst.config as ImageWidgetInstanceConfig)?.images ?? [] : [];
+                const meta = isRss
+                  ? `${inst.type.toUpperCase()} · ${feeds.length} feed${feeds.length === 1 ? "" : "s"}${typeof maxItems === "number" ? ` · max ${maxItems} items` : ""}`
+                  : isImage
+                    ? `${inst.type.toUpperCase()} · ${images.length} image${images.length === 1 ? "" : "s"}`
+                    : inst.type.toUpperCase();
+                return (
+                  <div key={inst.id} className="playlist-row">
+                    <div>
+                      <div className="playlist-name">{inst.name}</div>
+                      <div className="playlist-meta">{meta}</div>
+                    </div>
+                    <div className="playlist-actions">
+                      <button
+                        onClick={() => {
+                          setWidgetEditingId(inst.id);
+                          setWidgetName(inst.name);
+                          setWidgetIdInput(inst.id);
+                          setWidgetIdTouched(true);
+                          setWidgetType(inst.type);
+                          const cfgRss = (inst.config as RssWidgetInstanceConfig) || {};
+                          const cfgImage = (inst.config as ImageWidgetInstanceConfig) || {};
+                          setWidgetFeeds(cfgRss.feeds ?? []);
+                          setWidgetMaxItems(cfgRss.maxItems ?? 12);
+                          setWidgetImages(cfgImage.images ?? []);
+                          setImageUrlInput("");
+                          setImageCaptionInput("");
+                          setImageFitInput("cover");
+                          setWidgetSaveError(null);
+                          setWidgetModalOpen(true);
+                        }}
+                        aria-label={`Edit ${inst.name}`}
+                      >
+                        <EditIcon fontSize="small" />
+                      </button>
+                      <button
+                        className="danger icon"
+                        onClick={() => openDeleteWidgetInstance(inst.id, inst.name)}
+                        aria-label={`Delete ${inst.name}`}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {widgetDeleteId ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>Delete Widget</h3>
+              </div>
+              <div className="modal-body">
+                <p>Delete “{widgetDeleteName || widgetDeleteId}”?</p>
+                <p className="muted">Dashboards or stacks referencing this id will stop receiving data.</p>
+                {widgetDeleteError ? <p className="error-text" style={{ marginTop: 8 }}>{widgetDeleteError}</p> : null}
+              </div>
+              <div className="modal-actions">
+                <button className="ghost" disabled={widgetDeleting} onClick={() => { setWidgetDeleteId(null); setWidgetDeleteName(""); setWidgetDeleteError(null); }}>Cancel</button>
+                <button className="danger" disabled={widgetDeleting} onClick={handleDeleteWidgetInstance}>
+                  {widgetDeleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {widgetModalOpen ? (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal">
+              <div className="modal-header">
+                <h3>{widgetEditingId ? "Edit Widget" : "New Widget"}</h3>
+              </div>
+              <div className="modal-body modal-grid">
+                <label>
+                  Name
+                  <input
+                    type="text"
+                    value={widgetName}
+                    onChange={e => {
+                      setWidgetName(e.target.value);
+                      if (!widgetIdTouched) {
+                        setWidgetIdInput(slugify(e.target.value, ""));
+                      }
+                    }}
+                  />
+                </label>
+                <label>
+                  ID
+                  <input
+                    type="text"
+                    value={widgetIdValue}
+                    disabled={Boolean(widgetEditingId)}
+                    onChange={e => {
+                      setWidgetIdTouched(true);
+                      setWidgetIdInput(slugify(e.target.value, ""));
+                    }}
+                  />
+                </label>
+                <label>
+                  Type
+                  <select value={widgetType} onChange={e => setWidgetType(e.target.value)} disabled={Boolean(widgetEditingId)}>
+                    <option value="rss">rss</option>
+                    <option value="image">image</option>
+                  </select>
+                </label>
+
+                {widgetType === "rss" ? (
+                  <>
+                    <label>
+                      Max items (optional)
+                      <input
+                        type="number"
+                        min={1}
+                        max={50}
+                        value={widgetMaxItems}
+                        onChange={e => setWidgetMaxItems(e.target.value === "" ? "" : Number(e.target.value))}
+                      />
+                    </label>
+                    <div className="full-row">
+                      <label>
+                        Feeds
+                        <div className="widget-picker">
+                          <input
+                            type="text"
+                            placeholder="Name (optional)"
+                            value={feedNameInput}
+                            onChange={e => setFeedNameInput(e.target.value)}
+                          />
+                          <input
+                            type="url"
+                            placeholder="https://example.com/feed"
+                            value={feedUrlInput}
+                            onChange={e => setFeedUrlInput(e.target.value)}
+                          />
+                          <button type="button" onClick={handleAddFeed} disabled={!feedUrlInput.trim()}>
+                            Add feed
+                          </button>
+                        </div>
+                      </label>
+                      {widgetFeeds.length > 0 ? (
+                        <div className="chip-row">
+                          {widgetFeeds.map((f, idx) => (
+                            <span key={`${f.url}-${idx}`} className="chip">
+                              {f.name || "Feed"} <span className="muted">({f.url})</span>
+                              <button type="button" onClick={() => handleRemoveFeed(idx)} aria-label={`Remove ${f.url}`}>
+                                <ClearIcon fontSize="small" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="muted" style={{ margin: "6px 0 0" }}>No feeds added</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <div className="full-row">
+                    <label>
+                      Images
+                      <div className="widget-picker">
+                        <input
+                          type="url"
+                          placeholder="https://example.com/image.jpg"
+                          value={imageUrlInput}
+                          onChange={e => setImageUrlInput(e.target.value)}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Caption (optional)"
+                          value={imageCaptionInput}
+                          onChange={e => setImageCaptionInput(e.target.value)}
+                        />
+                        <select value={imageFitInput} onChange={e => setImageFitInput(e.target.value as "cover" | "contain")}>
+                          <option value="cover">cover</option>
+                          <option value="contain">contain</option>
+                        </select>
+                        <button type="button" onClick={handleAddImageEntry} disabled={!imageUrlInput.trim()}>
+                          Add image
+                        </button>
+                      </div>
+                    </label>
+                    {widgetImages.length > 0 ? (
+                      <div className="chip-row">
+                        {widgetImages.map((img, idx) => (
+                          <span key={`${img.url}-${idx}`} className="chip">
+                            {img.caption || "Image"} <span className="muted">({img.url})</span> {img.fit === "contain" ? "· contain" : "· cover"}
+                            <button type="button" onClick={() => handleRemoveImageEntry(idx)} aria-label={`Remove ${img.url}`}>
+                              <ClearIcon fontSize="small" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted" style={{ margin: "6px 0 0" }}>No images added</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              {widgetSaveError ? <p className="error-text" style={{ marginTop: 8 }}>{widgetSaveError}</p> : null}
+              <div className="modal-actions">
+                <button
+                  className="ghost"
+                  disabled={widgetSaving}
+                  onClick={() => {
+                    setWidgetModalOpen(false);
+                    resetWidgetForm();
+                  }}
+                >
+                  Cancel
+                </button>
+                <button onClick={handleSaveWidgetInstance} disabled={widgetSaving}>
+                  {widgetSaving ? "Saving…" : widgetEditingId ? "Save" : "Create"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </main>
+    </div>
+  );
+
   const renderBackupsPage = () => (
     <div className="landing-shell">
       <SidebarNav
         isHomeActive={false}
         isPlaylistManagerActive={false}
         isStacksActive={false}
+        isWidgetsActive={false}
         isBackupsActive
         buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
         version={APP_VERSION.replace(/^v/i, "")}
         onSelectHome={handleGoHome}
         onOpenPlaylistManager={handleOpenPlaylistManager}
         onOpenStacks={handleOpenStacks}
+        onOpenWidgets={handleOpenWidgets}
         onOpenBackups={handleOpenBackups}
         onOpenAbout={handleOpenAbout}
       />
@@ -1713,12 +2479,14 @@ function App() {
         isHomeActive={false}
         isPlaylistManagerActive
         isStacksActive={false}
+        isWidgetsActive={false}
         isBackupsActive={false}
         buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
         version={APP_VERSION.replace(/^v/i, "")}
         onSelectHome={handleGoHome}
         onOpenPlaylistManager={handleOpenPlaylistManager}
         onOpenStacks={handleOpenStacks}
+        onOpenWidgets={handleOpenWidgets}
         onOpenBackups={handleOpenBackups}
         onOpenAbout={handleOpenAbout}
       />
@@ -1849,15 +2617,17 @@ function App() {
   const renderLandingPage = () => (
     <div className="landing-shell">
       <SidebarNav
-        isHomeActive={!isPlaylistManager && !isBackupsPage && !isStacksPage}
+        isHomeActive={!isPlaylistManager && !isBackupsPage && !isStacksPage && !isWidgetsPage}
         isPlaylistManagerActive={false}
         isStacksActive={isStacksPage}
+        isWidgetsActive={isWidgetsPage}
         isBackupsActive={isBackupsPage}
         buildLabel={(import.meta as any)?.env?.VITE_BUILD_NAME || "dev"}
         version={APP_VERSION.replace(/^v/i, "")}
         onSelectHome={handleGoHome}
         onOpenPlaylistManager={handleOpenPlaylistManager}
         onOpenStacks={handleOpenStacks}
+        onOpenWidgets={handleOpenWidgets}
         onOpenBackups={handleOpenBackups}
         onOpenAbout={handleOpenAbout}
       />
@@ -2009,16 +2779,31 @@ function App() {
                         onChange={e => setCreateWidgetSelect(e.target.value)}
                       >
                         <option value="">Select a widget type</option>
-                        {widgetChoices.map(type => (
-                          <option key={type} value={type}>
-                            {type}
-                          </option>
-                        ))}
-                        {stacks.map(s => (
-                          <option key={`stack-${s.slug}`} value={`stack:${s.slug}`}>
-                            stack ({s.slug})
-                          </option>
-                        ))}
+                        <optgroup label="Widget types">
+                          {widgetChoices.map(type => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {widgetInstanceOptions.length > 0 ? (
+                          <optgroup label="Widget instances">
+                            {widgetInstanceOptions.map(opt => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                        {stacks.length > 0 ? (
+                          <optgroup label="Stacks">
+                            {stacks.map(s => (
+                              <option key={`stack-${s.slug}`} value={`stack:${s.slug}`}>
+                                stack ({s.slug})
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
                       </select>
                       <button type="button" onClick={handleAddWidget} disabled={!createWidgetSelect}>
                         Add
@@ -2029,7 +2814,7 @@ function App() {
                     <div className="chip-row">
                       {createWidgets.map((item, idx) => (
                         <span key={`${item.type}-${item.stackSlug || idx}`} className="chip">
-                          {item.type}{item.stackSlug ? ` • ${item.stackSlug}` : ""}
+                          {item.type} ({item.id || item.type}{item.stackSlug ? ` / ${item.stackSlug}` : ""})
                           <button type="button" onClick={() => handleRemoveWidget(idx)} aria-label={`Remove ${item.type}`}>
                             <ClearIcon fontSize="small" />
                           </button>
@@ -2126,16 +2911,31 @@ function App() {
                         onChange={e => setEditWidgetSelect(e.target.value)}
                       >
                         <option value="">Select a widget type</option>
-                        {widgetChoices.map(type => (
-                          <option key={type} value={type}>
-                            {type}
-                          </option>
-                        ))}
-                        {stacks.map(s => (
-                          <option key={`stack-${s.slug}`} value={`stack:${s.slug}`}>
-                            stack ({s.slug})
-                          </option>
-                        ))}
+                        <optgroup label="Widget types">
+                          {widgetChoices.map(type => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </optgroup>
+                        {widgetInstanceOptions.length > 0 ? (
+                          <optgroup label="Widget instances">
+                            {widgetInstanceOptions.map(opt => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
+                        {stacks.length > 0 ? (
+                          <optgroup label="Stacks">
+                            {stacks.map(s => (
+                              <option key={`stack-${s.slug}`} value={`stack:${s.slug}`}>
+                                stack ({s.slug})
+                              </option>
+                            ))}
+                          </optgroup>
+                        ) : null}
                       </select>
                       <button type="button" onClick={handleAddEditWidget} disabled={!editWidgetSelect}>
                         Add
@@ -2225,7 +3025,7 @@ function App() {
     return (
       <div className="layout dashboard">
         <Suspense fallback={<section className="panel"><p>Loading dashboard…</p></section>}>
-          <DashboardView dashboard={currentDashboard} apiOrigin={apiOrigin} onConnectionChange={() => {}} />
+          <DashboardView dashboard={resolvedDashboard ?? currentDashboard} apiOrigin={apiOrigin} onConnectionChange={() => {}} />
         </Suspense>
       </div>
     );
@@ -2234,6 +3034,9 @@ function App() {
 
   if (isStacksPage) {
     return renderStacksPage();
+  }
+  if (isWidgetsPage) {
+    return renderWidgetsPage();
   }
   if (isBackupsPage) {
     return renderBackupsPage();

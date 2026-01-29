@@ -39,7 +39,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Lowercase repo owner
-        run: echo "REPO_OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+        id: repo-owner
+        run: echo "value=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push dev image (non-main)
         if: github.ref != 'refs/heads/main'
@@ -49,7 +50,7 @@ jobs:
           file: ./Dockerfile
           push: true
           target: runner-dev
-          tags: ghcr.io/${{ env.REPO_OWNER_LC }}/dashino:dev
+          tags: ghcr.io/${{ steps.repo-owner.outputs.value }}/dashino:dev
 
       - name: Build and push prod image (main)
         if: github.ref == 'refs/heads/main'
@@ -58,4 +59,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ env.REPO_OWNER_LC }}/dashino:latest
+          tags: ghcr.io/${{ steps.repo-owner.outputs.value }}/dashino:latest

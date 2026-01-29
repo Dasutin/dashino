@@ -21,7 +21,13 @@ export type WidgetPlacement = {
     aspectRatio?: number;
   };
   stack?: StackWidgetConfig;
+  instanceId?: string;
+  instance?: WidgetInstance;
+  instanceError?: string;
 };
+
+export const CONFIGURABLE_WIDGET_TYPES = ["rss", "image"] as const;
+export type ConfigurableWidgetType = typeof CONFIGURABLE_WIDGET_TYPES[number];
 
 export type Dashboard = {
   slug: string;
@@ -64,6 +70,30 @@ export type WidgetTemplate = {
   html: string;
   css: string;
 };
+
+export type RssWidgetInstanceConfig = {
+  title?: string;
+  feeds: { name?: string; url: string }[];
+  maxItems?: number;
+  intervalMs?: number;
+};
+
+export type ImageWidgetInstanceConfig = {
+  title?: string;
+  images: { url: string; caption?: string; fit?: 'cover' | 'contain' }[];
+};
+
+type WidgetInstanceBase = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type WidgetInstance =
+  | (WidgetInstanceBase & { type: 'rss'; config: RssWidgetInstanceConfig })
+  | (WidgetInstanceBase & { type: 'image'; config: ImageWidgetInstanceConfig })
+  | (WidgetInstanceBase & { type: string; config: Record<string, unknown> });
 
 export type WidgetController = {
   update?: (payload?: StreamPayload) => void;
